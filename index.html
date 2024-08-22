@@ -7,7 +7,7 @@
     <meta name="description" content="Show-o: One Single Transformer To Unify
     Multimodal Understanding and Generation">
     <meta name="generator" content="Hugo 0.115.4">
-    <title>Show-1</title>
+    <title>Show-o</title>
 
     <link rel="icon" href="./assets/images/showlab.ico" type="image/x-icon">
 
@@ -17,7 +17,9 @@
 
 <link href="./assets/dist/css/bootstrap.min.css" rel="stylesheet">
 
+
     <style>
+      
       .bd-placeholder-img {
         font-size: 1.125rem;
         text-anchor: middle;
@@ -95,6 +97,7 @@
       }
     </style>
 
+
     <!-- Custom styles for this template -->
     <link href="./assets/cover.css" rel="stylesheet">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
@@ -115,22 +118,19 @@
         <path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/>
       </symbol>
     </svg>
+    
 
+
+    <body class="text-center2 text-bg-white">
+    </body>
 
   <main>
 
-    <section class="text-center container min-vh-100">
+    <section class="text-center container min-vh-0">
 
         <div class="row py-5">
-            <div class="bg-video" id="bgvideocontainer">
-                <div class="vimeo_player_wrapper" style="position: absolute; z-index: 0; width: 100%; height: 100%; left: 0px; top: 0px; overflow: hidden; opacity: 0.5;" data-vimeo-initialized="true">
-                  <div class="video-wrapper">
-                    <video id="bgvideo" muted autoplay="autoplay" loop="loop" src="./assets/videos/teaser.mp4" style="width: auto; height: 100%;"></video>
-                  </div>
-                </div>
-            </div>
             
-            <div class="mx-auto" style="margin-top: 16%; filter: saturate(1); opacity: 0.90;">
+            <div class="mx-auto" style="margin-top: 5%; filter: saturate(1); opacity: 0.90;">
                 <h1 class="display-2 fw-bold title">
                   <a style="color: #70a8dc;">S</a><a style="color: #6fb051;">h</a><a style="color: #e06766;">o</a><a style="color: #f7b26b;">w</a>-o: 
                   <a class="display-4">One Single Transformer To Unify Multimodal Understanding and Generation</a>
@@ -171,149 +171,63 @@
     </section>
   
 
-    <div class="album py-5 col-lg-5 mx-auto bg-dark">
+    <div class="album py-5 col-lg-5 mx-auto text-bg-dark">
         <div class="container">
             <h1>Abstract</h1>
-            </br>
 
             <p style="text-align: justify;">
-            We present a unified transformer, i.e., Show-o, that unifies multimodal understand-
-            ing and generation. Unlike fully auto-regressive models, Show-o unifies auto-
-            regressive and (discrete) diffusion modeling to adaptively handle inputs and out-
-            puts of various and mixed modalities. The unified model flexibly supports a wide
-            range of vision-language tasks including visual question-answering, text-to-image
-            generation, inpainting/extrapolation, and mixed-modality generation. Across var-
-            ious benchmarks, it demonstrates comparable or superior performance to existing
-            individual models with an equivalent number of parameters, highlighting its po-
-            tential as a next-generation foundation model. Code and models are released at
-            https://showlab.github.io/showo.
+              We present a unified transformer, i.e., Show-o, that unifies multimodal understanding and generation. Unlike fully autoregressive models, Show-o unifies au
+              toregressive and (discrete) diffusion modeling to adaptively handle inputs and outputs of various and mixed modalities. The unified model flexibly supports a wide
+              range of vision-language tasks including visual question-answering, text-to-image
+              generation, text-guided inpainting/extrapolation, and mixed-modality generation.
+              Across various benchmarks, it demonstrates comparable or superior performance
+              to existing individual models tailored for understanding or generation, which with
+              an equivalent or larger number of parameters. This signifiantly highlights its potential as a next-generation foundation model. Code and models are released at
               <a href='https://github.com/showlab/Show-o' target='_blank'>https://github.com/showlab/Show-o</a>.
             </p>
         </div>
     </div>
 
+
+    <div class="album py-5 bg-body-tertiary text-dark ">
+
+      <div class="container col-lg-8 mx-auto">
+
+        <h1>Characteristics Comparison</h1>
+
+        <img src="./assets/images/comparison.png" style="width: 100%;">
+      </div>
+    </div>
+
+
+
     <div class="album py-5 bg-body-tertiary text-dark">
       <div class="container col-lg-8 mx-auto">
 
         <h1>Method</h1>
-        </br>
-        
         <p style="text-align: justify;">
-          <strong>Pixel-based VDMs</strong> can generate motion accurately aligned with the textual prompt but 
-          typically demand expensive computational costs in terms of time and GPU memory, especially when 
-          generating high-resolution videos. <strong>Latent-based VDMs</strong> are more resource-efficient 
-          because they work in a reduced-dimension latent space.
+          We present a novel unified model, i.e., <a style="color: #70a8dc;">S</a><a style="color: #6fb051;">h</a><a style="color: #e06766;">o</a><a style="color: #f7b26b;">w</a>-o,
+          capable of addressing both multimodal understanding and generation tasks simultaneously with mixed auto-regressive and diffusion modeling.
         </p>
-
-        <img src="./assets/images/intro.png" style="width: 100%;">
-        
-        <p style="text-align: justify;">
-          But it is challenging for such small latent space (e.g., 64×40 for 256×160 videos) to cover rich yet 
-          necessary visual semantic details as described by the textual prompt. Therefore, as shown in above figure, 
-          the generated videos often are not well-aligned with the textual prompts. On the other hand, if the 
-          generated videos are of relatively high resolution (e.g., 256×160 videos), the latent model will focus 
-          more on spatial appearance but may also ignore the text-video alignment.
-        </p>
-
         <img src="./assets/images/showo.png" style="width: 100%;">
+
         <p style="text-align: justify;">
-          To marry the strength and alleviate the weakness of pixel-based and latent-based VDMs, we introduce 
-          <a style="color: #70a8dc;">S</a><a style="color: #6fb051;">h</a><a style="color: #e06766;">o</a><a style="color: #f7b26b;">w</a>-1, 
-          an efficient text-to-video model that generates videos of not only decent video-text alignment but also high visual quality. 
+          To perform unified learning on multimodal understanding and generation, we design a unified prompting strategy to format various kinds of input data. 
         </p>
-        
+        <img src="./assets/images/prompting.png" style="width: 100%;">
       </div>
     </div>
 
+    <div class="album py-5 bg-body-tertiary text-dark">
+      <div class="container col-lg-8 mx-auto">
 
-    <div id="myCarousel" class="carousel slide py-5" data-bs-ride="carousel">
-
-      <h1>Comparison</h1>
-      </br>
-
-      <div class="carousel-indicators">
-        <button type="button" data-bs-target="#myCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-      </div>
-      
-      <div class="carousel-inner">
+        <h1>Experiments</h1>
+        <img src="./assets/images/geneval_result.png" style="width: 100%;">
+        <img src="./assets/images/fid.png" style="width: 100%;">
+        <img src="./assets/images/ablation.png" style="width: 100%;">
         
-        <div class="carousel-item active">
-          <div class="container">
-              <div class="row row-cols-md-4 g-4" id="video-container">
-                
-                <div class="col" style="width: 25%;">
-                  <h4><strong><a style="color: #70a8dc;">S</a><a style="color: #6fb051;">h</a><a style="color: #e06766;">o</a><a style="color: #f7b26b;">w</a>-1</strong></h4>
-                  <div class="card hover-card">
-                      <video class="card-img-top card-img-bottom" muted autoplay="autoplay" loop="loop" width="100%">
-                        <source src="./assets/videos/comparison/show1/01.mp4" type="video/mp4">
-                        Your browser does not support the video tag.
-                      </video>
-                    </div>
-                </div>
-
-                <div class="col" style="width: 25%;">
-                  <h4>ModelScope</h4>
-                  <div class="card hover-card">
-                      <video class="card-img-top card-img-bottom" muted autoplay="autoplay" loop="loop" width="100%">
-                        <source src="./assets/videos/comparison/ms/01.mp4" type="video/mp4">
-                        Your browser does not support the video tag.
-                      </video>
-                    </div>
-                </div>
-
-                <div class="col" style="width: 25%;">
-                  <h4>Zeroscope</h4>
-                  <div class="card hover-card">
-                      <video class="card-img-top card-img-bottom" muted autoplay="autoplay" loop="loop" width="100%">
-                        <source src="./assets/videos/comparison/zs/01.mp4" type="video/mp4">
-                        Your browser does not support the video tag.
-                      </video>
-                    </div>
-                </div>
-
-                <div class="col" style="width: 25%;">
-                  <h4>Gen-2</h4>
-                  <div class="card hover-card">
-                      <video class="card-img-top card-img-bottom" muted autoplay="autoplay" loop="loop" width="100%">
-                        <source src="./assets/videos/comparison/gen2/01.mp4" type="video/mp4">
-                        Your browser does not support the video tag.
-                      </video>
-                    </div>
-                </div>
-              </div>
-
-              </br>
-              <h2 style="font-style: italic;">A <a class="text-highlight">blue tiger</a> in the grass in the sunset, <a class="text-highlight">surrounded by butterflies</a>.</h2>
-
-          </div>
-        </div>
-
-
-    
-
-        <div class="carousel-item">
-          <div class="container">
-              <div class="row row-cols-md-4 g-4" id="video-container">
-                
-              
-              </br>
-              <h2 style="font-style: italic;">Toad <a class="text-highlight">practicing karate</a>.</h2>
-
-          </div>
-        </div>
-
       </div>
-
-      <button class="carousel-control-prev" type="button" data-bs-target="#myCarousel" data-bs-slide="prev">
-        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-        <span class="visually-hidden">Previous</span>
-      </button>
-      <button class="carousel-control-next" type="button" data-bs-target="#myCarousel" data-bs-slide="next">
-        <span class="carousel-control-next-icon" aria-hidden="true"></span>
-        <span class="visually-hidden">Next</span>
-      </button>
     </div>
-  
   </main>
 
 
