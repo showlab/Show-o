@@ -24,7 +24,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 An overview of Show-o. The input data, regardless of its modalities, is tokenized and then prompted into a formatted input sequence. Show-o processes text tokens autoregressively with causal attention and image tokens in (discrete) denoising diffusion modeling via full attention, and then generates the desired output. Specifically, Show-o is capable of handling image captioning, visual question answering, text-to-image generation, text-guided inpainting/extrapolation, and mixed modality generation.
 
 ## News
-* **[2024-08-23]** We release the inference code of Show-o for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpaitning and extrapolation.
+* **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpaitning and extrapolation.
 
 ## TODO
 - [X] Release the inference code.
@@ -36,7 +36,12 @@ First, set up the environment:
 ```
 pip3 install -r requirments.txt
 ```
-Download our model checkpoints [here]() and [Phi-1.5](https://huggingface.co/microsoft/phi-1_5), and put them to a directory in the structure below:
+Download model weight of a [pre-trained LLM (Phi-1.5)](https://huggingface.co/microsoft/phi-1_5):
+```
+git lfs install
+git clone https://huggingface.co/microsoft/phi-1_5
+```
+Download model weights of [Show-o]() and put them to a directory in the structure below:
 ```
 ├── checkpoints/ 
 |   ├── magvitv2.pth
@@ -44,6 +49,8 @@ Download our model checkpoints [here]() and [Phi-1.5](https://huggingface.co/mic
 |   ├── showo_w_clip_vit.bin
 |   ├── phi-1_5
 ```
+
+
 Login your wandb account on your machine or server.
 ```
 wandb login <your wandb keys>
