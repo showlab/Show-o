@@ -15,7 +15,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 [Mike Zheng Shou](https://scholar.google.com/citations?hl=zh-CN&user=h1-3lSoAAAAJ&view_op=list_works&sortby=pubdate)<sup>1</sup> 
 
 <sup>1</sup> Show Lab, National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
-
+ 
 [![arXiv](https://img.shields.io/badge/arXiv-<TBD>-<COLOR>.svg)]()
 
 </div>
