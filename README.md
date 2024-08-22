@@ -49,8 +49,6 @@ Download model weights of [Show-o]() and put them to a directory in the structur
 |   ├── showo_w_clip_vit.bin
 |   ├── phi-1_5
 ```
-
-
 Login your wandb account on your machine or server.
 ```
 wandb login <your wandb keys>
@@ -61,6 +59,8 @@ python3 inference_mmu.py config=configs/showo_demo_w_clip_vit.yaml \
 mmu_image_root=./mmu_validation question='Please describe this image in detail. *** Do you think the image is unusual or not?' \
 pretrained_model_path=./checkpoints/showo_w_clip_vit.bin
 ```
+<img src="docs/github_mmu.png" width="1000">
+
 Inference demo for **Text-to-Image Generation** and you can view the results on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
@@ -68,7 +68,9 @@ batch_size=32 validation_prompts_file=validation_prompts/showoprompts.txt \
 guidance_scale=1.75 generation_timesteps=18 \
 mode='t2i' pretrained_model_path=./checkpoints/showo.bin
 ```
-Inference demo for **Text-based Inpainting** and you can view the results on wandb.
+<img src="docs/github_t2i.png" width="1000">
+
+Inference demo for **Text-guided Inpainting** and you can view the results on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=32 \
@@ -77,7 +79,9 @@ pretrained_model_path=./checkpoints/showo.bin \
 mode='inpainting' prompt='A blue sports car with sleek curves and tinted windows, parked on a bustling city street.' \
 image_path=./inpainting_validation/bus.jpg inpainting_mask_path=./inpainting_validation/bus_mask.webp
 ```
-Inference demo for **Text-based Extrapolation** and you can view the results on wandb.
+<img src="docs/github_inpainting.png" width="1000">
+
+Inference demo for **Text-guided Extrapolation** and you can view the results on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=32 \
@@ -86,6 +90,7 @@ pretrained_model_path=./checkpoints/showo.bin \
 mode='extrapolation' extra_direction='left *** left *** left *** right *** right *** right' offset=0 prompt='a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees.' \
 image_path=./inpainting_validation/alpine_lake.jpg
 ```
+<img src="docs/github_extrapolation.png" width="1000">
 
 ### Citation
 To cite the paper and model, please use the below:
