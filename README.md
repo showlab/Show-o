@@ -21,6 +21,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 </div>
 
 <img src="docs/showo.png" width="1000">
+An overview of Show-o. The input data, regardless of its modalities, is tokenized and then prompted into a formatted input sequence. Show-o processes text tokens autoregressively with causal attention and image tokens in (discrete) denoising diffusion modeling via full attention, and then generates the desired output. Specifically, Show-o is capable of handling image captioning, visual question answering, text-to-image generation, text-based inpainting/extrapolation, and mixed modality generation.
 
 ## News
 * **[2024-08-23]** We release the inference code of Show-o for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpaitning and extrapolation.
