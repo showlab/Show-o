@@ -23,7 +23,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 <img src="docs/showo.png" width="1000">
 
 ## News
-* **[2024-04-24]** We release the inference code of Show-o for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-based inpaitning and extrapolation.
+* **[2024-08-23]** We release the inference code of Show-o for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpaitning and extrapolation.
 
 ## TODO
 - [X] Release the inference code.
@@ -35,12 +35,13 @@ First, set up the environment:
 ```
 pip3 install -r requirments.txt
 ```
-Download all model checkpoints [here]() and put them to a directory in the structure below:
+Download our model checkpoints [here]() and [Phi-1.5](https://huggingface.co/microsoft/phi-1_5), and put them to a directory in the structure below:
 ```
 ├── checkpoints/ 
 |   ├── magvitv2.pth
 |   ├── showo.bin
 |   ├── showo_w_clip_vit.bin
+|   ├── phi-1_5
 ```
 Login your wandb account on your machine or server.
 ```
@@ -49,22 +50,22 @@ wandb login <your wandb keys>
 Inference demo for **Multimodal Understanding** and you can view the results on wandb.
 ```
 python3 inference_mmu.py config=configs/showo_demo_w_clip_vit.yaml \
-mmu_image_root=./mmu_validation question=['Please describe this image in details.','What do you think is the main ingredient of this dish','Please tell me how to make this dish'] \
+mmu_image_root=./mmu_validation question='Please describe this image in detail. *** Do you think the image is unusual or not?' \
 pretrained_model_path=./checkpoints/showo_w_clip_vit.bin
 ```
 Inference demo for **Text-to-Image Generation** and you can view the results on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=32 validation_prompts_file=validation_prompts/showoprompts.txt \
-guidance_scale=1.75 generation_timesteps=16 \
-mode='t2i' pretrained_model_path=./checkpoints/showo_w_clip_vit.bin
+guidance_scale=1.75 generation_timesteps=18 \
+mode='t2i' pretrained_model_path=./checkpoints/showo.bin
 ```
 Inference demo for **Text-based Inpainting** and you can view the results on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=32 \
 guidance_scale=1.75 generation_timesteps=16 \
-pretrained_model_path=./checkpoints/showo_w_clip_vit.bin \
+pretrained_model_path=./checkpoints/showo.bin \
 mode='inpainting' prompt='A blue sports car with sleek curves and tinted windows, parked on a bustling city street.' \
 image_path=./inpainting_validation/bus.jpg inpainting_mask_path=./inpainting_validation/bus_mask.webp
 ```
@@ -73,14 +74,13 @@ Inference demo for **Text-based Extrapolation** and you can view the results on 
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=32 \
 guidance_scale=1.75 generation_timesteps=16 \
-pretrained_model_path=./checkpoints/showo_w_clip_vit.bin \
+pretrained_model_path=./checkpoints/showo.bin \
 mode='extrapolation' extra_direction='left *** left *** left *** right *** right *** right' offset=0 prompt='a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees.' \
-image_path=./inpainting_validation/alpine_lake.jpg```
+image_path=./inpainting_validation/alpine_lake.jpg
 ```
 
-### License
 ### Citation
-To cite the paper, model, or software, please use the below:
+To cite the paper and model, please use the below:
 ```
 @article{xie2024showo,
   title={Show-o: One Single Transformer to Unify Multimodal Understanding and Generation},
@@ -89,3 +89,5 @@ To cite the paper, model, or software, please use the below:
   year={2024}
 }
 ```
+### Acknowledgments
+This work is heavily based on [open-muse](https://github.com/huggingface/open-muse), [Phi-1.5](https://huggingface.co/microsoft/phi-1_5), [muse-maskgit-pytorch](https://github.com/lucidrains/muse-maskgit-pytorch), [maskgit](https://github.com/google-research/maskgit), [taming-transformers](https://github.com/CompVis/taming-transformers), [transformers](https://github.com/huggingface/transformers), [accelerate](https://github.com/huggingface/accelerate), [diffusers](https://github.com/huggingface/diffusers), and [webdatset](https://github.com/webdataset/webdataset). Thanks to all the authors for their great work.
