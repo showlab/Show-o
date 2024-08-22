@@ -85,7 +85,7 @@ To cite the paper and model, please use the below:
 ```
 @article{xie2024showo,
   title={Show-o: One Single Transformer to Unify Multimodal Understanding and Generation},
-  author={},
+  author={Xie, Jinheng and Mao, Weijia and Bai, Zechen and Zhang, David Junhao and Wang, Weihao and Lin, Kevin Qinghong and Gu, Yuchao and Chen, Zhijie and Yang, Zhenheng and Shou, Mike Zheng},
   journal={},
   year={2024}
 }
