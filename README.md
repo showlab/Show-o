@@ -16,7 +16,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 <sup>1</sup> Show Lab, National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
 
-[![arXiv](https://img.shields.io/badge/arXiv-<2404.15909>-<COLOR>.svg)](https://arxiv.org/abs/2404.15909)
+[![arXiv](https://img.shields.io/badge/arXiv-<TBD>-<COLOR>.svg)]()
 
 </div>
 
