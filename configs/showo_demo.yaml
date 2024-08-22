@@ -15,7 +15,7 @@ model:
 
     showo:
         w_clip_vit: False
-        vocab_size: 58498 # 50295 (phi) + 1 (pad) 9 (special tokens) e.g., <soi> <eoi> <sovi> <eovi> <t2i> <mmu> <t2v> <v2v> <lvg> (128266)/ + 8192 (tokenizer) + 1 (mask)
+        vocab_size: 58498
         llm_vocab_size: 50295
         pretrained_model_path: './checkpoints/phi-1_5'
         codebook_size: 8192
