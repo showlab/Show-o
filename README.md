@@ -12,7 +12,7 @@ Weihao Wang<sup>2</sup>&nbsp;
 [Yuchao Gu](https://ycgu.site/)<sup>1</sup>
 Zhijie Chen<sup>2</sup>&nbsp;
 [Zhenheng Yang](https://scholar.google.com/citations?user=Ds5wwRoAAAAJ&hl=en)<sup>2</sup>&nbsp;
-[Mike Zheng Shou](https://scholar.google.com/citations?hl=zh-CN&user=h1-3lSoAAAAJ&view_op=list_works&sortby=pubdate)<sup>1</sup> 
+[Mike Zheng Shou](https://sites.google.com/view/showlab)<sup>1</sup> 
 
 <sup>1</sup> Show Lab, National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
