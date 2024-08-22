@@ -47,7 +47,7 @@ Download model weight of a [pre-trained LLM (Phi-1.5)](https://huggingface.co/mi
 git lfs install
 git clone https://huggingface.co/microsoft/phi-1_5
 ```
-Download model weights of [Show-o]() and put them to a directory in the structure below:
+Download model weights of [Show-o](https://drive.google.com/drive/folders/10t_B_q2Bly8Z_97pQ1DbYOuaa1HWjooi?usp=drive_link) and put them to a directory in the structure below:
 ```
 ├── checkpoints/ 
 |   ├── magvitv2.pth
