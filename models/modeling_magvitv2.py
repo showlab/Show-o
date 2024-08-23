@@ -4,19 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .common_modules import *
-from .depth_decoder import DepthDecoder
-from .dinov2_decoder import Dinov2Decoder
 from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
 from .misc import *
 import math
-
-dinov2_dims = {
-    "dinov2_vits14": 384,
-    "dinov2_vitb14": 768,
-    "dinov2_vitl14": 1024, 
-    "dinov2_vitg14": 1536,
-}
-
 
 class Updateable:
     def do_update_step(
@@ -69,11 +59,6 @@ class VQGANEncoder(ModelMixin, ConfigMixin):
         resolution: int = 256
         z_channels: int = 13
         double_z: bool = False
-        dinov2_name: str = "dinov2_vitl14"
-        dinov2_renorm: bool = False
-        dinov2_resampling: bool = False
-        dinov2_checkpoint_path: str = ""
-        use_dinov2: bool = False
 
     def __init__(self,
                  ch: int = 128,
@@ -85,12 +70,7 @@ class VQGANEncoder(ModelMixin, ConfigMixin):
                  out_ch: int = 3,
                  resolution: int = 256,
                  z_channels: int = 13,
-                 double_z: bool = False,
-                 dinov2_name: str = "dinov2_vitl14",
-                 dinov2_renorm: bool = False,
-                 dinov2_resampling: bool = False,
-                 dinov2_checkpoint_path: str = "",
-                 use_dinov2: bool = False):
+                 double_z: bool = False):
         super().__init__()
         self.ch = ch
         self.temb_ch = 0
@@ -98,7 +78,6 @@ class VQGANEncoder(ModelMixin, ConfigMixin):
         self.num_res_blocks = num_res_blocks
         self.resolution = resolution
         self.in_ch = in_ch
-        self.use_dinov2 = use_dinov2
         # downsampling
         self.conv_in = torch.nn.Conv2d(
             self.in_ch, self.ch, kernel_size=3, stride=1, padding=1
@@ -148,34 +127,15 @@ class VQGANEncoder(ModelMixin, ConfigMixin):
             dropout=dropout,
         )
 
-        # end
-        if use_dinov2:
-            self.dinov2 = DinoV2Model(
-                dinov2_name,
-                local_checkpoint_path=dinov2_checkpoint_path,
-                renorm_input=dinov2_renorm,
-                freeze_model=True,
-            )
-            block_in += dinov2_dims[dinov2_name]
-            # Prohibit loading pretrained weights for these layers when using DinoV2; therefore, rename them.
-            self.dnorm_out = Normalize(block_in)
-            self.dconv_out = torch.nn.Conv2d(
-                block_in,
-                2 * z_channels if double_z else z_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-            )
-        else:
-            self.dinov2 = None
-            self.norm_out = Normalize(block_in)
-            self.conv_out = torch.nn.Conv2d(
-                block_in,
-                2 * z_channels if double_z else z_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-            )
+
+        self.norm_out = Normalize(block_in)
+        self.conv_out = torch.nn.Conv2d(
+            block_in,
+            2 * z_channels if double_z else z_channels,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+        )
 
         self.quant_conv = torch.nn.Conv2d(z_channels, z_channels, 1)
         # for param in self.parameters():
@@ -201,17 +161,6 @@ class VQGANEncoder(ModelMixin, ConfigMixin):
         h = self.mid.block_1(h, temb)
         h = self.mid.attn_1(h)
         h = self.mid.block_2(h, temb)
-        if self.use_dinov2:
-            dino = self.dinov2(x).detach()
-            _, _, h_height, h_width = h.size()
-            if h_height != dino.shape[2] or h_width != dino.shape[3]:
-                dino = F.interpolate(dino, (h_height, h_width), mode="bilinear")
-            h = torch.cat([h, dino], dim=1)
-            h = self.dnorm_out(h)
-            h = nonlinearity(h)
-            h = self.dconv_out(h)
-            h = self.quant_conv(h)
-            return h
 
         # end
         h = self.norm_out(h)
@@ -336,13 +285,7 @@ class VQGANDecoder(ModelMixin, ConfigMixin):
                  out_ch: int = 3,
                  resolution: int = 256,
                  z_channels: int = 13,
-                 double_z: bool = False,
-                 use_dinov2_decoder: bool = False,
-                 dinov2_out_channels: int = 384,
-                 dinov2_num_blocks: int = 2,
-                 depth_to_space: bool = False,
-                 predict_depth: bool = False,
-                 use_depth_decoder: bool = False):
+                 double_z: bool = False):
         super().__init__()
         self.ch = ch
         self.temb_ch = 0
@@ -351,17 +294,7 @@ class VQGANDecoder(ModelMixin, ConfigMixin):
         self.resolution = resolution
         self.in_ch = in_ch
         self.give_pre_end = False
-        self.predict_depth = predict_depth
-        self.use_depth_decoder = use_depth_decoder
-        if use_dinov2_decoder:
-            self.dinov2_decoder = Dinov2Decoder(
-                z_channels,
-                dinov2_out_channels,
-                dinov2_num_blocks,
-                dropout,
-            )
-        else:
-            self.dinov2_decoder = None
+
         self.z_channels = z_channels
         # compute in_ch_mult, block_in and curr_res at lowest res
         in_ch_mult = (1,) + tuple(ch_mult)
@@ -417,22 +350,9 @@ class VQGANDecoder(ModelMixin, ConfigMixin):
             up.block = block
             up.attn = attn
             if i_level != 0:
-                if depth_to_space:
-                    up.upsample = DepthToSpaceUpsample(block_in)
-                else:
-                    up.upsample = Upsample(block_in, True)
+                up.upsample = Upsample(block_in, True)
                 curr_res = curr_res * 2
             self.up.insert(0, up)  # prepend to get consistent order
-
-        # end
-        if predict_depth:
-            if use_depth_decoder:
-                self._depth_decoder = DepthDecoder(self.cfg)
-            else:
-                self._depth_norm_out = Normalize(block_in)
-                self._depth_conv_out = torch.nn.Conv2d(
-                    block_in, 1, kernel_size=3, stride=1, padding=1
-                )
 
         self.norm_out = Normalize(block_in)
         self.conv_out = torch.nn.Conv2d(
@@ -449,11 +369,7 @@ class VQGANDecoder(ModelMixin, ConfigMixin):
         self.last_z_shape = z.shape
         # timestep embedding
         temb = None
-        if self.dinov2_decoder is not None:
-            dino_embeddings = self.dinov2_decoder(z)
-        else:
-            dino_embeddings = None
-        output = {"dino": dino_embeddings}
+        output = dict()
         z = self.post_quant_conv(z)
 
         # z to block_in
@@ -477,17 +393,6 @@ class VQGANDecoder(ModelMixin, ConfigMixin):
         output["output"] = h
         if self.give_pre_end:
             return output
-
-        if self.predict_depth:
-            if self.use_depth_decoder:
-                output["depth"] = self._depth_decoder(z)
-            else:
-                dd = self._depth_norm_out(h)
-                dd = nonlinearity(dd)
-                dd = self._depth_conv_out(dd)
-                output["depth"] = dd
-        else:
-            output["depth"] = None
 
         h = self.norm_out(h)
         h = nonlinearity(h)
