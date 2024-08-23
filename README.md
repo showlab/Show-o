@@ -16,7 +16,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 <sup>1</sup> Show Lab, National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
-[![arXiv](https://img.shields.io/badge/arXiv-<TBD>-<COLOR>.svg)]() [![page](https://img.shields.io/badge/page-<Showo>-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
+[![arXiv](https://img.shields.io/badge/arXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/abs/2408.12528) [![page](https://img.shields.io/badge/page-<Showo>-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
 
 </div>
 
@@ -104,7 +104,7 @@ To cite the paper and model, please use the below:
 @article{xie2024showo,
   title={Show-o: One Single Transformer to Unify Multimodal Understanding and Generation},
   author={Xie, Jinheng and Mao, Weijia and Bai, Zechen and Zhang, David Junhao and Wang, Weihao and Lin, Kevin Qinghong and Gu, Yuchao and Chen, Zhijie and Yang, Zhenheng and Shou, Mike Zheng},
-  journal={},
+  journal={arXiv preprint arXiv:2408.12528},
   year={2024}
 }
 ```
