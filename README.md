@@ -24,7 +24,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 * **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpaitning and extrapolation.
 
 ## What is the new about Show-o?
-<img src="docs/characteristic_comparison.png" width="750">
+<img src="docs/characteristic_comparison.png" width="600">
 
 <img src="docs/showo.png" width="1000">
 
