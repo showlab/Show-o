@@ -4,6 +4,8 @@ from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
 from .sampling import cosine_schedule, gumbel_sample, mask_by_random_topk, top_k, top_k_top_p_filtering
 from .phi import PhiForCausalLM
 
+from huggingface_hub import PyTorchModelHubMixin
+
 try:
     import xformers.ops as xops
 
@@ -12,7 +14,7 @@ except ImportError:
     is_xformers_available = False
 
 
-class Showo(ModelMixin, ConfigMixin):
+class Showo(ModelMixin, ConfigMixin, PyTorchModelHubMixin, repo_url="https://github.com/showlab/Show-o", pipeline_tag="any-to-any", license="mit"):
     _supports_gradient_checkpointing = True
 
     @register_to_config
