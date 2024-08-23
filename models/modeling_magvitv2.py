@@ -8,6 +8,8 @@ from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
 from .misc import *
 import math
 
+from huggingface_hub import PyTorchModelHubMixin
+
 class Updateable:
     def do_update_step(
             self, epoch: int, global_step: int, on_load_weights: bool = False
@@ -400,7 +402,7 @@ class VQGANDecoder(ModelMixin, ConfigMixin):
         return output
 
 
-class MAGViTv2(ModelMixin, ConfigMixin):
+class MAGViTv2(ModelMixin, ConfigMixin, PyTorchModelHubMixin, repo_url="https://github.com/showlab/Show-o", tags="variational-autoencoder", license="mit"):
     @register_to_config
     def __init__(
             self,
