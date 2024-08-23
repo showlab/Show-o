@@ -70,7 +70,7 @@ pretrained_model_path=./checkpoints/showo_w_clip_vit.bin
 Inference demo for **Text-to-Image Generation** and you can view the results on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
-batch_size=32 validation_prompts_file=validation_prompts/showoprompts.txt \
+batch_size=1 validation_prompts_file=validation_prompts/showoprompts.txt \
 guidance_scale=1.75 generation_timesteps=18 \
 mode='t2i' pretrained_model_path=./checkpoints/showo.bin
 ```
@@ -79,7 +79,7 @@ mode='t2i' pretrained_model_path=./checkpoints/showo.bin
 Inference demo for **Text-guided Inpainting** and you can view the results on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
-batch_size=32 \
+batch_size=1 \
 guidance_scale=1.75 generation_timesteps=16 \
 pretrained_model_path=./checkpoints/showo.bin \
 mode='inpainting' prompt='A blue sports car with sleek curves and tinted windows, parked on a bustling city street.' \
@@ -90,7 +90,7 @@ image_path=./inpainting_validation/bus.jpg inpainting_mask_path=./inpainting_val
 Inference demo for **Text-guided Extrapolation** and you can view the results on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
-batch_size=32 \
+batch_size=1 \
 guidance_scale=1.75 generation_timesteps=16 \
 pretrained_model_path=./checkpoints/showo.bin \
 mode='extrapolation' extra_direction='left *** left *** left *** right *** right *** right' offset=0 prompt='a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees.' \
