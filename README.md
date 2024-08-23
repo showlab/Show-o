@@ -30,7 +30,7 @@ Characteristics comparison among understanding only, generation only, and unifie
 <br/>
 
 ## News
-* **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpaitning and extrapolation.
+* **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpainting and extrapolation.
 
 ## TODO
 - [X] Release the inference code.
