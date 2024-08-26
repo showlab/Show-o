@@ -361,8 +361,8 @@ class VQGANDecoder(ModelMixin, ConfigMixin):
         self.post_quant_conv = torch.nn.Conv2d(
             z_channels, z_channels, 1
         )
-        
 
+ 
     def forward(self, z):
         # assert z.shape[1:] == self.z_shape[1:]
         self.last_z_shape = z.shape

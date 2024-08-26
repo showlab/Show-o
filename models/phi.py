@@ -314,13 +314,13 @@ class PhiAttention(nn.Module):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
-        if self.qk_layernorm:
-            query_states = self.q_layernorm(query_states)
-            key_states = self.k_layernorm(key_states)
-
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+
+        if self.qk_layernorm:
+            query_states = self.q_layernorm(query_states)
+            key_states = self.k_layernorm(key_states)
 
         kv_seq_len = key_states.shape[-2]
         if past_key_value is not None:
@@ -433,16 +433,16 @@ class PhiFlashAttention2(PhiAttention):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
-        if self.qk_layernorm:
-            query_states = self.q_layernorm(query_states)
-            key_states = self.k_layernorm(key_states)
-
         # Flash attention requires the input to have the shape
         # batch_size x seq_length x head_dim x hidden_dim
         # therefore we just need to keep the original shape
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+
+        if self.qk_layernorm:
+            query_states = self.q_layernorm(query_states)
+            key_states = self.k_layernorm(key_states)
 
         kv_seq_len = key_states.shape[-2]
         if past_key_value is not None:
@@ -658,16 +658,6 @@ class PhiSdpaAttention(PhiAttention):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
 
-        # for testing
-        # if self.qk_layernorm:
-        #     query_states_ = query_states.view(bsz, q_len * self.num_heads, self.head_dim)
-        #     key_states_ = key_states.view(bsz, q_len * self.num_key_value_heads, self.head_dim)
-        #     query_states_ = self.q_layernorm(query_states_)
-        #     key_states_ = self.k_layernorm(key_states_)
-        #     query_states_ = query_states_.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-        #     key_states_ = key_states_.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
-        # for testing
-
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
@@ -675,13 +665,6 @@ class PhiSdpaAttention(PhiAttention):
         if self.qk_layernorm:
             query_states = self.q_layernorm(query_states)
             key_states = self.k_layernorm(key_states)
-
-        # print(query_states_[0, 0, 0, :].mean())
-        # print(query_states[0, 0, 0, :].mean())
-        #
-        # import ipdb
-        # ipdb.set_trace()
-
 
         kv_seq_len = key_states.shape[-2]
         if past_key_value is not None:
@@ -1102,8 +1085,6 @@ class PhiModel(PhiPreTrainedModel):
 
 class PhiForCausalLM(PhiPreTrainedModel):
     _tied_weights_keys = ["lm_head.weight"]
-
-    # Copied from transformers.models.llama.modeling_llama.LlamaForCausalLM.__init__ with Llama->Phi,bias=False->bias=True
     def __init__(self, config):
         super().__init__(config)
         config.qk_layernorm = True
