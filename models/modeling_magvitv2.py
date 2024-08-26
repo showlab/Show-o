@@ -402,11 +402,8 @@ class VQGANDecoder(ModelMixin, ConfigMixin):
         return output
 
 
-class MAGViTv2(ModelMixin, ConfigMixin, PyTorchModelHubMixin, repo_url="https://github.com/showlab/Show-o", tags=["variational-autoencoder"], license="mit"):
-    @register_to_config
-    def __init__(
-            self,
-    ):
+class MAGViTv2(nn.Module, PyTorchModelHubMixin, repo_url="https://github.com/showlab/Show-o", tags=["variational-autoencoder"], license="mit"):
+    def __init__(self):
         super().__init__()
 
         self.encoder = VQGANEncoder()
