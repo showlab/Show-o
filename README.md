@@ -16,7 +16,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 <sup>1</sup> Show Lab, National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
-[![arXiv](https://img.shields.io/badge/arXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/abs/2408.12528) [![page](https://img.shields.io/badge/page-<Showo>-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
+[![arXiv](https://img.shields.io/badge/arXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/abs/2408.12528) [![page](https://img.shields.io/badge/page-<Showo>-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/Z7xdzYDa) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat.jpg)
 
 </div>
 
