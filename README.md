@@ -16,12 +16,12 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 <sup>1</sup> Show Lab, National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
-[![arXiv](https://img.shields.io/badge/arXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/abs/2408.12528) [![page](https://img.shields.io/badge/page-<Showo>-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/Z7xdzYDa) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat.jpg)
+[![arXiv](https://img.shields.io/badge/arXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/abs/2408.12528) [![page](https://img.shields.io/badge/page-<Showo>-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/Z7xdzYDa) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_0826.jpg)
 
 </div>
 
 **News**
-* **[2024-08-26]** We build two community platforms to facilitate discussion, request and collaboration! Reach us with [Discord](https://discord.gg/Z7xdzYDa) and [WeChat](https://github.com/showlab/Show-o/blob/main/docs/wechat.jpg)!
+* **[2024-08-26]** We build two community platforms to facilitate discussion, request and collaboration! Reach us with [Discord](https://discord.gg/Z7xdzYDa) and [WeChat](https://github.com/showlab/Show-o/blob/main/docs/wechat_0826.jpg)!
 * **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpainting and extrapolation.
 
 ## What is the new about Show-o?
@@ -105,7 +105,7 @@ image_path=./inpainting_validation/alpine_lake.jpg
 Welcome to discuss with us and continuously improve the user experience of Show-o.
 Reach us with this [Discord channel](https://discord.gg/Z7xdzYDa) or the WeChat QR code below!
 <p align="center">
-<img src="docs/wechat.jpg" width="256">
+<img src="docs/wechat_0826.jpg" width="256">
 </p>
 
 ### Citation
