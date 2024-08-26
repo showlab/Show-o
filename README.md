@@ -21,6 +21,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 </div>
 
 **News**
+* **[2024-08-26]** We build two community platforms to facilitate discussion, request and collaboration! Reach us with [Discord](https://discord.gg/Z7xdzYDa) and [WeChat](https://github.com/showlab/Show-o/blob/main/docs/wechat.jpg)!
 * **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpainting and extrapolation.
 
 ## What is the new about Show-o?
@@ -101,10 +102,11 @@ image_path=./inpainting_validation/alpine_lake.jpg
 <img src="docs/github_extrapolation.png" width="1000">
 
 ### Join Discussion
-- Discord: https://discord.gg/Z7xdzYDa
-- WeChat
-
+Welcome to discuss with us and continuously improve the user experience of Show-o.
+Reach us with this [Discord channel](https://discord.gg/Z7xdzYDa) or the WeChat QR code below!
+<p align="center">
 <img src="docs/wechat.jpg" width="256">
+</p>
 
 ### Citation
 To cite the paper and model, please use the below:
