@@ -100,6 +100,12 @@ image_path=./inpainting_validation/alpine_lake.jpg
 ```
 <img src="docs/github_extrapolation.png" width="1000">
 
+### Join Discussion
+- Discord: https://discord.gg/Z7xdzYDa
+- WeChat
+
+<img src="docs/wechat.jpg" width="256">
+
 ### Citation
 To cite the paper and model, please use the below:
 ```
