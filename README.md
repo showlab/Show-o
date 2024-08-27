@@ -43,7 +43,7 @@ Below is an overview of **Show-o**. The input data, regardless of its modalities
 
 ## Hugging Face models
 
-The Slow-o checkpoints can be found on [Hugging Face](https://huggingface.co/showlab):
+The Show-o checkpoints can be found on [Hugging Face](https://huggingface.co/showlab):
 
 * [showlab/show-o](https://huggingface.co/showlab/show-o)
 * [showlab/show-o-w-clip-vit](https://huggingface.co/showlab/show-o-w-clip-vit)
