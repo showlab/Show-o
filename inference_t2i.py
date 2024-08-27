@@ -48,22 +48,19 @@ if __name__ == '__main__':
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    tokenizer = AutoTokenizer.from_pretrained(config.model.showo.pretrained_model_path, padding_side="left")
+    tokenizer = AutoTokenizer.from_pretrained(config.model.showo.llm_model_path, padding_side="left")
 
     uni_prompting = UniversalPrompting(tokenizer, max_text_len=config.dataset.preprocessing.max_seq_length,
                                        special_tokens=("**soi**", "**eoi**", "**sov**", "**eov**", "**t2i**", "**mmu**", "**t2v**", "**v2v**", "**lvg**"),
                                        ignore_id=-100, cond_dropout_prob=config.training.cond_dropout_prob)
 
-    vq_model = get_vq_model_class(config.model.vq_model.type)().to(device)
-    vq_model.load_state_dict(torch.load(config.model.vq_model.pretrained))
+    vq_model = get_vq_model_class(config.model.vq_model.type)
+    vq_model = vq_model.from_pretrained(config.model.vq_model.vq_model_name).to(device)
     vq_model.requires_grad_(False)
     vq_model.eval()
 
-    model = Showo(**config.model.showo).to(device)
-    state_dict = torch.load(config.pretrained_model_path)
-    model.load_state_dict(state_dict, strict=True)
+    model = Showo.from_pretrained(config.model.showo.pretrained_model_path).to(device)
     model.eval()
-    del state_dict
 
     mask_token_id = model.config.mask_token_id
 

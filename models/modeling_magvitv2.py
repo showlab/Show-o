@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .common_modules import *
+from huggingface_hub import PyTorchModelHubMixin
 from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
 from .misc import *
 import math
@@ -362,7 +363,7 @@ class VQGANDecoder(ModelMixin, ConfigMixin):
             z_channels, z_channels, 1
         )
 
- 
+
     def forward(self, z):
         # assert z.shape[1:] == self.z_shape[1:]
         self.last_z_shape = z.shape

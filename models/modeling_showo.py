@@ -1,5 +1,8 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
+from huggingface_hub import PyTorchModelHubMixin
+from transformers import AutoConfig
 from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
 from .sampling import cosine_schedule, gumbel_sample, mask_by_random_topk, top_k, top_k_top_p_filtering
 from .phi import PhiForCausalLM
@@ -21,7 +24,7 @@ class Showo(ModelMixin, ConfigMixin):
             w_clip_vit,
             vocab_size,
             llm_vocab_size,
-            pretrained_model_path='',
+            llm_model_path='',
             codebook_size=8192,
             num_vq_tokens=256,
             **kwargs,
@@ -29,10 +32,8 @@ class Showo(ModelMixin, ConfigMixin):
         super().__init__()
         self.vocab_size = vocab_size
         self.register_to_config(mask_token_id=vocab_size - 1)
-        self.showo = PhiForCausalLM.from_pretrained(
-            pretrained_model_path,
-            torch_dtype=torch.float32,
-        )
+        config = AutoConfig.from_pretrained(llm_model_path)
+        self.showo = PhiForCausalLM(config)
         self.showo.resize_token_embeddings(self.vocab_size)
         self.output_size = self.vocab_size
 

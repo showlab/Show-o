@@ -21,6 +21,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 </div>
 
 **News**
+* **[2024-08-27]** Add integration into HuggingFace! Thanks to @[NielsRogge](https://github.com/NielsRogge).
 * **[2024-08-26]** We build two community platforms to facilitate discussion, request and collaboration! Reach us with [Discord](https://discord.gg/Z7xdzYDa) and [WeChat](https://github.com/showlab/Show-o/blob/main/docs/wechat_0826.jpg)!
 * **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpainting and extrapolation.
 
@@ -45,19 +46,6 @@ First, set up the environment:
 ```
 pip3 install -r requirments.txt
 ```
-Download model weight of a [pre-trained LLM (Phi-1.5)](https://huggingface.co/microsoft/phi-1_5):
-```
-git lfs install
-git clone https://huggingface.co/microsoft/phi-1_5
-```
-Download model weights of [Show-o](https://drive.google.com/drive/folders/10t_B_q2Bly8Z_97pQ1DbYOuaa1HWjooi?usp=drive_link) and put them to a directory in the structure below:
-```
-├── checkpoints/ 
-|   ├── magvitv2.pth
-|   ├── showo.bin
-|   ├── showo_w_clip_vit.bin
-|   ├── phi-1_5
-```
 Login your wandb account on your machine or server.
 ```
 wandb login <your wandb keys>
@@ -65,8 +53,7 @@ wandb login <your wandb keys>
 Inference demo for **Multimodal Understanding** and you can view the results on wandb.
 ```
 python3 inference_mmu.py config=configs/showo_demo_w_clip_vit.yaml \
-mmu_image_root=./mmu_validation question='Please describe this image in detail. *** Do you think the image is unusual or not?' \
-pretrained_model_path=./checkpoints/showo_w_clip_vit.bin
+mmu_image_root=./mmu_validation question='Please describe this image in detail. *** Do you think the image is unusual or not?'
 ```
 <img src="docs/github_mmu.png" width="1000">
 
@@ -75,7 +62,7 @@ Inference demo for **Text-to-Image Generation** and you can view the results on 
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=1 validation_prompts_file=validation_prompts/showoprompts.txt \
 guidance_scale=1.75 generation_timesteps=18 \
-mode='t2i' pretrained_model_path=./checkpoints/showo.bin
+mode='t2i'
 ```
 <img src="docs/github_t2i.png" width="1000">
 
@@ -84,7 +71,6 @@ Inference demo for **Text-guided Inpainting** and you can view the results on wa
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=1 \
 guidance_scale=1.75 generation_timesteps=16 \
-pretrained_model_path=./checkpoints/showo.bin \
 mode='inpainting' prompt='A blue sports car with sleek curves and tinted windows, parked on a bustling city street.' \
 image_path=./inpainting_validation/bus.jpg inpainting_mask_path=./inpainting_validation/bus_mask.webp
 ```
@@ -95,7 +81,6 @@ Inference demo for **Text-guided Extrapolation** and you can view the results on
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=1 \
 guidance_scale=1.75 generation_timesteps=16 \
-pretrained_model_path=./checkpoints/showo.bin \
 mode='extrapolation' extra_direction='left *** left *** left *** right *** right *** right' offset=0 prompt='a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees. *** a serene natural landscape featuring a clear, blue lake surrounded by lush green trees.' \
 image_path=./inpainting_validation/alpine_lake.jpg
 ```

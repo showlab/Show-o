@@ -11,13 +11,14 @@ experiment:
 model:
     vq_model:
         type: "magvitv2"
-        pretrained: "./checkpoints/magvitv2.pth"
+        vq_model_name: "showlab/magvitv2"
 
     showo:
+        pretrained_model_path: "showlab/show-o-w-clip-vit"
         w_clip_vit: True
-        vocab_size: 58498 
+        vocab_size: 58498
         llm_vocab_size: 50295
-        pretrained_model_path: './checkpoints/phi-1_5'
+        llm_model_path: 'microsoft/phi-1_5'
         codebook_size: 8192
         num_vq_tokens: 256
 
