@@ -63,7 +63,7 @@ greenlet==3.0.3
 grpcio==1.64.0
 h11==0.14.0
 hjson==3.1.0
-huggingface-hub==0.23.1
+huggingface-hub==0.23.2
 hupper==1.12.1
 idna==3.7
 imageio==2.34.1
