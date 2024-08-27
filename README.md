@@ -57,7 +57,7 @@ mmu_image_root=./mmu_validation question='Please describe this image in detail. 
 ```
 <img src="docs/github_mmu.png" width="1000">
 
-Inference demo for **Text-to-Image Generation** and you can view the results on wandb.
+Inference demo for **Text-to-Image Generation** and you can view the results (in a resolution of 256x256) on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=1 validation_prompts_file=validation_prompts/showoprompts.txt \
@@ -66,7 +66,7 @@ mode='t2i'
 ```
 <img src="docs/github_t2i.png" width="1000">
 
-Inference demo for **Text-guided Inpainting** and you can view the results on wandb.
+Inference demo for **Text-guided Inpainting** and you can view the results (in a resolution of 256x256) on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=1 \
@@ -76,7 +76,7 @@ image_path=./inpainting_validation/bus.jpg inpainting_mask_path=./inpainting_val
 ```
 <img src="docs/github_inpainting.png" width="1000">
 
-Inference demo for **Text-guided Extrapolation** and you can view the results on wandb.
+Inference demo for **Text-guided Extrapolation** and you can view the results (in a resolution of 256x256) on wandb.
 ```
 python3 inference_t2i.py config=configs/showo_demo.yaml \
 batch_size=1 \
