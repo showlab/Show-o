@@ -711,8 +711,7 @@ class PhiSdpaAttention(PhiAttention):
         # We dispatch to SDPA's Flash Attention or Efficient kernels via this `is_causal` if statement instead of an inline conditional assignment
         # in SDPA to support both torch.compile's dynamic shapes and full graph options. An inline conditional prevents dynamic shapes from compiling.
         is_causal = True if self.is_causal and attention_mask is None and q_len > 1 else False
-        # import ipdb
-        # ipdb.set_trace()
+
         attn_output = torch.nn.functional.scaled_dot_product_attention(
             query_states,
             key_states,
@@ -744,8 +743,6 @@ class PhiDecoderLayer(nn.Module):
         self.mlp = PhiMLP(config)
         self.input_layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.resid_dropout = nn.Dropout(config.resid_pdrop)
-        # import ipdb
-        # ipdb.set_trace()
 
     def forward(
         self,
@@ -933,6 +930,7 @@ class PhiModel(PhiPreTrainedModel):
         self.vocab_size = config.vocab_size
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         self.embed_dropout = nn.Dropout(config.embd_pdrop)
+        print("attention implementation: ", config._attn_implementation)
         self.layers = nn.ModuleList(
             [PhiDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
         )
