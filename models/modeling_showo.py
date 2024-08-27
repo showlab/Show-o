@@ -1,10 +1,8 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from huggingface_hub import PyTorchModelHubMixin
 from transformers import AutoConfig
 from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
-from .sampling import cosine_schedule, gumbel_sample, mask_by_random_topk, top_k, top_k_top_p_filtering
+from .sampling import cosine_schedule, mask_by_random_topk
 from .phi import PhiForCausalLM
 
 try:

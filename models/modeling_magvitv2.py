@@ -2,9 +2,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from .common_modules import *
-from huggingface_hub import PyTorchModelHubMixin
 from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
 from .misc import *
 import math
