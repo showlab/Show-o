@@ -2,7 +2,7 @@ import torch
 
 class UniversalPrompting():
     def __init__(self, text_tokenizer,
-                 special_tokens=("**soi**", "**eoi**", "**sov**", "**eov**", "**t2i**", "**mmu**", "**t2v**", "**v2v**", "**lvg**"),
+                 special_tokens=("<|soi|>", "<|eoi|>", "<|sov|>", "<|eov|>", "<|t2i|>", "<|mmu|>", "<|t2v|>", "<|v2v|>", "<|lvg|>"),
                  max_text_len=8000, max_seq_len=377, ignore_id=-100, cond_dropout_prob=0.1):
         """
         :param text_tokenizer: original text tokenizer
@@ -12,15 +12,14 @@ class UniversalPrompting():
         self.text_tokenizer.add_tokens(list(special_tokens))
         self.sptids_dict = {token: torch.tensor(self.text_tokenizer.convert_tokens_to_ids([token])) for token in
                             special_tokens}
-        self.sptids_dict['**sot**'] = torch.tensor([self.text_tokenizer.bos_token_id])
-        self.sptids_dict['**eot**'] = torch.tensor([self.text_tokenizer.eos_token_id])
-        self.sptids_dict['**pad**'] = torch.tensor([self.text_tokenizer.pad_token_id])
+        self.sptids_dict['<|sot|>'] = torch.tensor([self.text_tokenizer.bos_token_id])
+        self.sptids_dict['<|eot|>'] = torch.tensor([self.text_tokenizer.eos_token_id])
+        self.sptids_dict['<|pad|>'] = torch.tensor([self.text_tokenizer.pad_token_id])
         # plus 1 because at this time we add a task token before
         self.max_text_len = max_text_len + 1
         self.pad_id = self.text_tokenizer.convert_tokens_to_ids('[PAD]')
         self.ignore_id = ignore_id
         self.cond_dropout_prob = cond_dropout_prob
-        # for llama "<|eot_id|>" "<|bot_id|>"
 
     def t2i_prompt_predict_next(self, text_ids, image_ids, labels):
 
@@ -29,7 +28,6 @@ class UniversalPrompting():
         attention_masks = []
         label_ids = []
         probs = torch.rand(len(text_ids))
-        probs2 = torch.rand(len(text_ids))
         for i in range(len(text_ids)):
 
             if len(text_ids[i]) == 0:
@@ -37,11 +35,11 @@ class UniversalPrompting():
             elif text_ids[i][0] != self.text_tokenizer.bos_token_id:
                 text_ids[i] = [self.text_tokenizer.bos_token_id] + text_ids[i]
 
-            temp_ids = [int(self.sptids_dict['**t2i**'])] + text_ids[i] + [self.text_tokenizer.eos_token_id]
+            temp_ids = [int(self.sptids_dict['<|t2i|>'])] + text_ids[i] + [self.text_tokenizer.eos_token_id]
 
             # randomly dropout text condition
             if probs[i] < self.cond_dropout_prob:
-                temp_ids = [int(self.sptids_dict['**t2i**']), self.text_tokenizer.bos_token_id, self.text_tokenizer.eos_token_id]
+                temp_ids = [int(self.sptids_dict['<|t2i|>']), self.text_tokenizer.bos_token_id, self.text_tokenizer.eos_token_id]
 
             if self.max_text_len >= len(temp_ids):
                 temp_ids = [self.pad_id] * (self.max_text_len - len(temp_ids)) + temp_ids
@@ -55,18 +53,18 @@ class UniversalPrompting():
             temp_label_ids = torch.cat([
                 # should we predict text tokens when doing image reconstruction?
                 torch.tensor(temp_ids).to(device),
-                self.sptids_dict['**soi**'].to(device),
+                self.sptids_dict['<|soi|>'].to(device),
                 labels[i],
-                self.sptids_dict['**eoi**'].to(device)
+                self.sptids_dict['<|eoi|>'].to(device)
             ], dim=0)
 
             temp_label_ids = torch.where(temp_label_ids == self.pad_id, self.ignore_id, temp_label_ids)
 
             temp_ids = torch.cat([
                 torch.tensor(temp_ids).to(device),
-                self.sptids_dict['**soi**'].to(device),
+                self.sptids_dict['<|soi|>'].to(device),
                 image_ids[i],
-                self.sptids_dict['**eoi**'].to(device)
+                self.sptids_dict['<|eoi|>'].to(device)
             ], dim=0)
 
             temp_masks = torch.tensor(temp_masks).to(device)
@@ -87,7 +85,7 @@ class UniversalPrompting():
             elif text_ids[i][0] != self.text_tokenizer.bos_token_id:
                 text_ids[i] = [self.text_tokenizer.bos_token_id] + text_ids[i]
             # note that, llama3 tokenizer automatically add the bot token at first but without eot
-            temp_ids = [int(self.sptids_dict['**t2i**'])] + text_ids[i] + [self.text_tokenizer.eos_token_id]
+            temp_ids = [int(self.sptids_dict['<|t2i|>'])] + text_ids[i] + [self.text_tokenizer.eos_token_id]
             if self.max_text_len >= len(temp_ids):
                 temp_ids = [self.pad_id] * (self.max_text_len - len(temp_ids)) + temp_ids
                 temp_masks = [0] * (self.max_text_len - len(temp_ids)) + [1] * len(temp_ids)
@@ -98,9 +96,9 @@ class UniversalPrompting():
             # prompting -- [task token] [sot] [text tokens] [eot] [soi] [image tokens] [eoi]
             temp_ids = torch.cat([
                 torch.tensor(temp_ids).to(device),
-                self.sptids_dict['**soi**'].to(device),
+                self.sptids_dict['<|soi|>'].to(device),
                 image_ids[i],
-                self.sptids_dict['**eoi**'].to(device)
+                self.sptids_dict['<|eoi|>'].to(device)
             ], dim=0)
 
             temp_masks = torch.tensor(temp_masks).to(device)
@@ -184,10 +182,10 @@ class UniversalPrompting():
             temp_label_ids = torch.where(temp_label_ids == self.pad_id, self.ignore_id, temp_label_ids)
 
             temp_ids = torch.cat([
-                self.sptids_dict['**mmu**'].to(device),  # task token
-                self.sptids_dict['**soi**'].to(device),
+                self.sptids_dict['<|mmu|>'].to(device),  # task token
+                self.sptids_dict['<|soi|>'].to(device),
                 image_ids[i],
-                self.sptids_dict['**eoi**'].to(device),
+                self.sptids_dict['<|eoi|>'].to(device),
                 torch.tensor(temp_ids).to(device),
             ], dim=0)
 
@@ -229,11 +227,11 @@ class UniversalPrompting():
             elif text_ids[i][0] != self.text_tokenizer.bos_token_id:
                 text_ids[i] = [self.text_tokenizer.bos_token_id] + text_ids[i]
 
-            temp_ids = [int(self.sptids_dict['**t2i**'])] + text_ids[i] + [self.text_tokenizer.eos_token_id]
+            temp_ids = [int(self.sptids_dict['<|t2i|>'])] + text_ids[i] + [self.text_tokenizer.eos_token_id]
 
             # randomly dropout text condition
             if probs[i] < self.cond_dropout_prob:
-                temp_ids = [int(self.sptids_dict['**t2i**']), self.text_tokenizer.bos_token_id,
+                temp_ids = [int(self.sptids_dict['<|t2i|>']), self.text_tokenizer.bos_token_id,
                             self.text_tokenizer.eos_token_id]
 
             if self.max_text_len >= len(temp_ids):
@@ -248,18 +246,18 @@ class UniversalPrompting():
             temp_label_ids = torch.cat([
                 # should we predict text tokens when doing image reconstruction?
                 torch.tensor(temp_ids).to(device),
-                self.sptids_dict['**soi**'].to(device),
+                self.sptids_dict['<|soi|>'].to(device),
                 labels[i],
-                self.sptids_dict['**eoi**'].to(device)
+                self.sptids_dict['<|eoi|>'].to(device)
             ], dim=0)
 
             temp_label_ids = torch.where(temp_label_ids == self.pad_id, self.ignore_id, temp_label_ids)
 
             temp_ids = torch.cat([
                 torch.tensor(temp_ids).to(device),
-                self.sptids_dict['**soi**'].to(device),
+                self.sptids_dict['<|soi|>'].to(device),
                 image_ids[i],
-                self.sptids_dict['**eoi**'].to(device)
+                self.sptids_dict['<|eoi|>'].to(device)
             ], dim=0)
 
             temp_masks = torch.tensor(temp_masks).to(device)
@@ -280,7 +278,7 @@ class UniversalPrompting():
             elif text_ids[i][0] != self.text_tokenizer.bos_token_id:
                 text_ids[i] = [self.text_tokenizer.bos_token_id] + text_ids[i]
             # note that, llama3 tokenizer automatically add the bot token at first but without eot
-            temp_ids = [int(self.sptids_dict['**t2i**'])] + text_ids[i] + [self.text_tokenizer.eos_token_id]
+            temp_ids = [int(self.sptids_dict['<|t2i|>'])] + text_ids[i] + [self.text_tokenizer.eos_token_id]
             if self.max_text_len >= len(temp_ids):
                 temp_ids = [self.pad_id] * (self.max_text_len - len(temp_ids)) + temp_ids
                 temp_masks = [0] * (self.max_text_len - len(temp_ids)) + [1] * len(temp_ids)
@@ -291,9 +289,9 @@ class UniversalPrompting():
             # prompting -- [task token] [sot] [text tokens] [eot] [soi] [image tokens] [eoi]
             temp_ids = torch.cat([
                 torch.tensor(temp_ids).to(device),
-                self.sptids_dict['**soi**'].to(device),
+                self.sptids_dict['<|soi|>'].to(device),
                 image_ids[i],
-                self.sptids_dict['**eoi**'].to(device)
+                self.sptids_dict['<|eoi|>'].to(device)
             ], dim=0)
 
             temp_masks = torch.tensor(temp_masks).to(device)

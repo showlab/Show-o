@@ -51,7 +51,7 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(config.model.showo.llm_model_path, padding_side="left")
 
     uni_prompting = UniversalPrompting(tokenizer, max_text_len=config.dataset.preprocessing.max_seq_length,
-                                       special_tokens=("**soi**", "**eoi**", "**sov**", "**eov**", "**t2i**", "**mmu**", "**t2v**", "**v2v**", "**lvg**"),
+                                       special_tokens=("<|soi|>", "<|eoi|>", "<|sov|>", "<|eov|>", "<|t2i|>", "<|mmu|>", "<|t2v|>", "<|v2v|>", "<|lvg|>"),
                                        ignore_id=-100, cond_dropout_prob=config.training.cond_dropout_prob)
 
     vq_model = get_vq_model_class(config.model.vq_model.type)
@@ -112,15 +112,15 @@ if __name__ == '__main__':
         if config.training.guidance_scale > 0:
             uncond_input_ids, _ = uni_prompting(([''] * len(prompt), inpainting_image_tokens), 't2i_gen')
             attention_mask = create_attention_mask_predict_next(torch.cat([input_ids, uncond_input_ids], dim=0),
-                                                                pad_id=int(uni_prompting.sptids_dict['**pad**']),
-                                                                soi_id=int(uni_prompting.sptids_dict['**soi**']),
-                                                                eoi_id=int(uni_prompting.sptids_dict['**eoi**']),
+                                                                pad_id=int(uni_prompting.sptids_dict['<|pad|>']),
+                                                                soi_id=int(uni_prompting.sptids_dict['<|soi|>']),
+                                                                eoi_id=int(uni_prompting.sptids_dict['<|eoi|>']),
                                                                 rm_pad_in_image=True)
         else:
             attention_mask = create_attention_mask_predict_next(input_ids,
-                                                                pad_id=int(uni_prompting.sptids_dict['**pad**']),
-                                                                soi_id=int(uni_prompting.sptids_dict['**soi**']),
-                                                                eoi_id=int(uni_prompting.sptids_dict['**eoi**']),
+                                                                pad_id=int(uni_prompting.sptids_dict['<|pad|>']),
+                                                                soi_id=int(uni_prompting.sptids_dict['<|soi|>']),
+                                                                eoi_id=int(uni_prompting.sptids_dict['<|eoi|>']),
                                                                 rm_pad_in_image=True)
             uncond_input_ids = None
 
@@ -219,15 +219,15 @@ if __name__ == '__main__':
             if config.training.guidance_scale > 0:
                 uncond_input_ids, _ = uni_prompting(([''] * len(prt), extrapolation_image_tokens), 't2i_gen')
                 attention_mask = create_attention_mask_predict_next(torch.cat([input_ids, uncond_input_ids], dim=0),
-                                                                    pad_id=int(uni_prompting.sptids_dict['**pad**']),
-                                                                    soi_id=int(uni_prompting.sptids_dict['**soi**']),
-                                                                    eoi_id=int(uni_prompting.sptids_dict['**eoi**']),
+                                                                    pad_id=int(uni_prompting.sptids_dict['<|pad|>']),
+                                                                    soi_id=int(uni_prompting.sptids_dict['<|soi|>']),
+                                                                    eoi_id=int(uni_prompting.sptids_dict['<|eoi|>']),
                                                                     rm_pad_in_image=True)
             else:
                 attention_mask = create_attention_mask_predict_next(input_ids,
-                                                                    pad_id=int(uni_prompting.sptids_dict['**pad**']),
-                                                                    soi_id=int(uni_prompting.sptids_dict['**soi**']),
-                                                                    eoi_id=int(uni_prompting.sptids_dict['**eoi**']),
+                                                                    pad_id=int(uni_prompting.sptids_dict['<|pad|>']),
+                                                                    soi_id=int(uni_prompting.sptids_dict['<|soi|>']),
+                                                                    eoi_id=int(uni_prompting.sptids_dict['<|eoi|>']),
                                                                     rm_pad_in_image=True)
                 uncond_input_ids = None
 
@@ -293,15 +293,15 @@ if __name__ == '__main__':
             if config.training.guidance_scale > 0:
                 uncond_input_ids, _ = uni_prompting(([''] * len(prompts), image_tokens), 't2i_gen')
                 attention_mask = create_attention_mask_predict_next(torch.cat([input_ids, uncond_input_ids], dim=0),
-                                                                    pad_id=int(uni_prompting.sptids_dict['**pad**']),
-                                                                    soi_id=int(uni_prompting.sptids_dict['**soi**']),
-                                                                    eoi_id=int(uni_prompting.sptids_dict['**eoi**']),
+                                                                    pad_id=int(uni_prompting.sptids_dict['<|pad|>']),
+                                                                    soi_id=int(uni_prompting.sptids_dict['<|soi|>']),
+                                                                    eoi_id=int(uni_prompting.sptids_dict['<|eoi|>']),
                                                                     rm_pad_in_image=True)
             else:
                 attention_mask = create_attention_mask_predict_next(input_ids,
-                                                                    pad_id=int(uni_prompting.sptids_dict['**pad**']),
-                                                                    soi_id=int(uni_prompting.sptids_dict['**soi**']),
-                                                                    eoi_id=int(uni_prompting.sptids_dict['**eoi**']),
+                                                                    pad_id=int(uni_prompting.sptids_dict['<|pad|>']),
+                                                                    soi_id=int(uni_prompting.sptids_dict['<|soi|>']),
+                                                                    eoi_id=int(uni_prompting.sptids_dict['<|eoi|>']),
                                                                     rm_pad_in_image=True)
                 uncond_input_ids = None
 

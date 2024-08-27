@@ -57,7 +57,7 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(config.model.showo.llm_model_path, padding_side="left")
 
     uni_prompting = UniversalPrompting(tokenizer, max_text_len=config.dataset.preprocessing.max_seq_length,
-                                       special_tokens=("**soi**", "**eoi**", "**sov**", "**eov**", "**t2i**", "**mmu**", "**t2v**", "**v2v**", "**lvg**"),
+                                       special_tokens=("<|soi|>", "<|eoi|>", "<|sov|>", "<|eov|>", "<|t2i|>", "<|mmu|>", "<|t2v|>", "<|v2v|>", "<|lvg|>"),
                                        ignore_id=-100, cond_dropout_prob=config.training.cond_dropout_prob)
 
     vq_model = get_vq_model_class(config.model.vq_model.type)
@@ -117,11 +117,11 @@ if __name__ == '__main__':
                 input_ids = torch.tensor(input_ids).to(device).squeeze(0)
                 # import pdb; pdb.set_trace()
                 input_ids_llava = torch.cat([
-                        (torch.ones(input_ids.shape[0], 1) *uni_prompting.sptids_dict['**mmu**']).to(device),
+                        (torch.ones(input_ids.shape[0], 1) *uni_prompting.sptids_dict['<|mmu|>']).to(device),
                         input_ids_system,
-                        (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['**soi**']).to(device),
+                        (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['<|soi|>']).to(device),
                         # place your img embedding here
-                        (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['**eoi**']).to(device),
+                        (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['<|eoi|>']).to(device),
                         input_ids,
                 ], dim=1).long()
 
@@ -142,7 +142,7 @@ if __name__ == '__main__':
                                                     attention_mask=attention_mask_llava[0].unsqueeze(0),
                                                     max_new_tokens=100,
                                                     top_k=top_k,
-                                                    eot_token=uni_prompting.sptids_dict['**eot**']
+                                                    eot_token=uni_prompting.sptids_dict['<|eot|>']
                                                     )
             else:
                 input_ids = uni_prompting.text_tokenizer(['USER: \n' + question + ' ASSISTANT:'])[
@@ -150,20 +150,20 @@ if __name__ == '__main__':
                 input_ids = torch.tensor(input_ids).to(device)
 
                 input_ids = torch.cat([
-                    (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['**mmu**']).to(device),
-                    (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['**soi**']).to(device),
+                    (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['<|mmu|>']).to(device),
+                    (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['<|soi|>']).to(device),
                     image_tokens,
-                    (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['**eoi**']).to(device),
-                    (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['**sot**']).to(device),
+                    (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['<|eoi|>']).to(device),
+                    (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['<|sot|>']).to(device),
                     input_ids
                 ], dim=1).long()
 
                 attention_mask = create_attention_mask_for_mmu(input_ids.to(device),
-                                                               eoi_id=int(uni_prompting.sptids_dict['**eoi**']))
+                                                               eoi_id=int(uni_prompting.sptids_dict['<|eoi|>']))
 
                 cont_toks_list = model.mmu_generate(input_ids, attention_mask=attention_mask,
                                             max_new_tokens=100, top_k=top_k,
-                                            eot_token=uni_prompting.sptids_dict['**eot**'])
+                                            eot_token=uni_prompting.sptids_dict['<|eot|>'])
 
             cont_toks_list = torch.stack(cont_toks_list).squeeze()[None]
 
