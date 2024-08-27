@@ -44,7 +44,7 @@ Below is an overview of **Show-o**. The input data, regardless of its modalities
 ## Getting Started
 First, set up the environment:
 ```
-pip3 install -r requirments.txt
+pip3 install -r requirements.txt
 ```
 Login your wandb account on your machine or server.
 ```
