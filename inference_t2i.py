@@ -8,19 +8,9 @@ import torch
 import wandb
 from models import Showo, MAGVITv2, get_mask_chedule
 from training.prompting_utils import UniversalPrompting, create_attention_mask_predict_next
-from training.utils import get_config, flatten_omega_conf
+from training.utils import get_config, flatten_omega_conf, image_transform
 from transformers import AutoTokenizer
-from torchvision import transforms
 import torch.nn.functional as F
-
-
-def image_transform(image, resolution=256, normalize=True):
-    image = transforms.Resize(resolution, interpolation=transforms.InterpolationMode.BICUBIC)(image)
-    image = transforms.CenterCrop((resolution, resolution))(image)
-    image = transforms.ToTensor()(image)
-    if normalize:
-        image = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)(image)
-    return image
 
 def get_vq_model_class(model_type):
     if model_type == "magvitv2":

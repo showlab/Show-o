@@ -7,9 +7,8 @@ import torch
 import wandb
 from models import Showo, MAGVITv2
 from training.prompting_utils import UniversalPrompting, create_attention_mask_for_mmu, create_attention_mask_for_mmu_vit
-from training.utils import get_config, flatten_omega_conf
+from training.utils import get_config, flatten_omega_conf, image_transform
 from transformers import AutoTokenizer
-from torchvision import transforms
 from models.clip_encoder import CLIPVisionTower
 from transformers import CLIPImageProcessor
 
@@ -19,14 +18,6 @@ conversation_lib.default_conversation = conversation_lib.conv_templates["phi1.5"
 SYSTEM_PROMPT = "A chat between a curious user and an artificial intelligence assistant. " \
                 "The assistant gives helpful, detailed, and polite answers to the user's questions."
 SYSTEM_PROMPT_LEN = 28
-
-def image_transform(image, resolution=256, normalize=True):
-    image = transforms.Resize(resolution, interpolation=transforms.InterpolationMode.BILINEAR)(image)
-    image = transforms.CenterCrop((resolution, resolution))(image)
-    image = transforms.ToTensor()(image)
-    if normalize:
-        image = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)(image)
-    return image
 
 def get_vq_model_class(model_type):
     if model_type == "magvitv2":
