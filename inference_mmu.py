@@ -5,7 +5,7 @@ from tqdm import tqdm
 import numpy as np
 import torch
 import wandb
-from models import Showo, MAGViTv2
+from models import Showo, MAGVITv2
 from training.prompting_utils import UniversalPrompting, create_attention_mask_for_mmu, create_attention_mask_for_mmu_vit
 from training.utils import get_config, flatten_omega_conf
 from transformers import AutoTokenizer
@@ -30,7 +30,7 @@ def image_transform(image, resolution=256, normalize=True):
 
 def get_vq_model_class(model_type):
     if model_type == "magvitv2":
-        return MAGViTv2
+        return MAGVITv2
     else:
         raise ValueError(f"model_type {model_type} not supported.")
 

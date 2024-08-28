@@ -399,7 +399,7 @@ class VQGANDecoder(ModelMixin, ConfigMixin):
         return output
 
 
-class MAGViTv2(ModelMixin, ConfigMixin):
+class MAGVITv2(ModelMixin, ConfigMixin):
     @register_to_config
     def __init__(
             self,

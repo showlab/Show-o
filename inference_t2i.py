@@ -6,7 +6,7 @@ from tqdm import tqdm
 import numpy as np
 import torch
 import wandb
-from models import Showo, MAGViTv2, get_mask_chedule
+from models import Showo, MAGVITv2, get_mask_chedule
 from training.prompting_utils import UniversalPrompting, create_attention_mask_predict_next
 from training.utils import get_config, flatten_omega_conf
 from transformers import AutoTokenizer
@@ -24,7 +24,7 @@ def image_transform(image, resolution=256, normalize=True):
 
 def get_vq_model_class(model_type):
     if model_type == "magvitv2":
-        return MAGViTv2
+        return MAGVITv2
     else:
         raise ValueError(f"model_type {model_type} not supported.")
 
