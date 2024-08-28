@@ -21,6 +21,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 </div>
 
 **News**
+* **[2024-08-28]** We maintain a repo of [Awesome Unified Multimodal Models](https://github.com/showlab/Awesome-Unified-Multimodal-Models). If you are interested in unified models, star and watch it to get latest updates!
 * **[2024-08-27]** Add integration to Hugging Face! Thanks to @[NielsRogge](https://github.com/NielsRogge).
 * **[2024-08-26]** We build two community platforms to facilitate discussion, request and collaboration! Reach us with [Discord](https://discord.gg/Z7xdzYDa) and [WeChat](https://github.com/showlab/Show-o/blob/main/docs/wechat_0826.jpg)!
 * **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpainting and extrapolation.
