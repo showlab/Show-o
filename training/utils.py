@@ -11,9 +11,11 @@ from typing import Any, List, Tuple, Union
 ##################################################
 def get_config():
     cli_conf = OmegaConf.from_cli()
+    print(cli_conf)
     yaml_conf = OmegaConf.load(cli_conf.config)
     conf = OmegaConf.merge(yaml_conf, cli_conf)
-
+    print(type(conf))
+    print(conf)
     return conf
 
 

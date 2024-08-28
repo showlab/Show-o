@@ -11,10 +11,10 @@ experiment:
 model:
     vq_model:
         type: "magvitv2"
-        vq_model_name: "showlab/magvitv2"
+        vq_model_name: "magvitv2"
 
     showo:
-        pretrained_model_path: "showlab/show-o-w-clip-vit"
+        pretrained_model_path: "show-o-w-clip-vit"
         w_clip_vit: True
         vocab_size: 58498
         llm_vocab_size: 50295

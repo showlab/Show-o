@@ -1,10 +1,12 @@
 import os
+import sys
+sys.path.append("/home/grads/h/hasnat.md.abdullah/Show-o/training")
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 from PIL import Image
 from tqdm import tqdm
 import numpy as np
 import torch
-import wandb
+# import wandb
 from models import Showo, MAGVITv2
 from training.prompting_utils import UniversalPrompting, create_attention_mask_for_mmu, create_attention_mask_for_mmu_vit
 from training.utils import get_config, flatten_omega_conf, image_transform
@@ -28,21 +30,22 @@ def get_vq_model_class(model_type):
 if __name__ == '__main__':
 
     config = get_config()
+    
 
-    resume_wandb_run = config.wandb.resume
-    run_id = config.wandb.get("run_id", None)
-    if run_id is None:
-        resume_wandb_run = False
-        run_id = wandb.util.generate_id()
-        config.wandb.run_id = run_id
+    # resume_wandb_run = config.wandb.resume
+    # run_id = config.wandb.get("run_id", None)
+    # if run_id is None:
+    #     resume_wandb_run = False
+    #     run_id = wandb.util.generate_id()
+    #     config.wandb.run_id = run_id
 
-    wandb_config = {k: v for k, v in flatten_omega_conf(config, resolve=True)}
+    # wandb_config = {k: v for k, v in flatten_omega_conf(config, resolve=True)}
 
-    wandb.init(
-        project="demo",
-        name=config.experiment.name + '_mmu',
-        config=wandb_config,
-    )
+    # wandb.init(
+    #     project="demo",
+    #     name=config.experiment.name + '_mmu',
+    #     config=wandb_config,
+    # )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = AutoTokenizer.from_pretrained(config.model.showo.llm_model_path, padding_side="left")
@@ -168,6 +171,6 @@ if __name__ == '__main__':
     images = images.permute(0, 2, 3, 1).cpu().numpy().astype(np.uint8)
     pil_images = [Image.fromarray(image) for image in images]
 
-    wandb_images = [wandb.Image(image, caption=responses[i]) for i, image in enumerate(pil_images)]
-    wandb.log({"multimodal understanding": wandb_images}, step=0)
+    # wandb_images = [wandb.Image(image, caption=responses[i]) for i, image in enumerate(pil_images)]
+    # wandb.log({"multimodal understanding": wandb_images}, step=0)
 
