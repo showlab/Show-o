@@ -133,7 +133,7 @@ if __name__ == '__main__':
                                                     attention_mask=attention_mask_llava[0].unsqueeze(0),
                                                     max_new_tokens=100,
                                                     top_k=top_k,
-                                                    eot_token=uni_prompting.sptids_dict['<|eot|>']
+                                                    eot_token=tokenizer.eos_token_id
                                                     )
             else:
                 input_ids = uni_prompting.text_tokenizer(['USER: \n' + question + ' ASSISTANT:'])[
