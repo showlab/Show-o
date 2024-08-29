@@ -28,7 +28,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 * **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpainting and extrapolation.
 
 ## What is the new about Show-o?
-Below is a characteristics comparison among understanding only, generation only, and unified (understanding \& generation) models. ``Vision'' and ``Language'' indicate the representations from specific input modalities. **In this context, ``Diffusion'' represents both continuous and discrete diffusion.**
+Below is a characteristics comparison among understanding only, generation only, and unified (understanding \& generation) models. `Vision` and `Language` indicate the representations from specific input modalities. **In this context, `Diffusion` represents both continuous and discrete diffusion.**
 <p align="center">
 <img src="docs/characteristic_comparison.png" width="650">
 </p>
