@@ -1,5 +1,6 @@
 <div align="center">
-<h1><font color=#6FA8DC>S</font><font color=#6FB150>h</font><font color=#E16766>o</font><font color=#F7B26B>w</font>-o</h1>
+<br>
+<img src="docs/showo_title.png" width="166">
 <h3>One Single Transformer to Unify Multimodal Understanding and Generation</h3>
 
 [Jinheng Xie](https://sierkinhane.github.io/)<sup>1&#42;</sup>&nbsp;
@@ -14,7 +15,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 [Zhenheng Yang](https://scholar.google.com/citations?user=Ds5wwRoAAAAJ&hl=en)<sup>2</sup>&nbsp;
 [Mike Zheng Shou](https://sites.google.com/view/showlab)<sup>1</sup> 
 
-<sup>1</sup> Show Lab, National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
+<sup>1</sup> [Show Lab](https://sites.google.com/view/showlab/home?authuser=0), National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
 [![arXiv](https://img.shields.io/badge/arXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/abs/2408.12528) [![page](https://img.shields.io/badge/page-<Showo>-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/Z7xdzYDa) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_0826.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
 
@@ -27,8 +28,9 @@ Zhijie Chen<sup>2</sup>&nbsp;
 * **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpainting and extrapolation.
 
 ## What is the new about Show-o?
+Below is a characteristics comparison among understanding only, generation only, and unified (understanding \& generation) models. `Vision` and `Language` indicate the representations from specific input modalities. **In this context, `Diffusion` represents both continuous and discrete diffusion.**
 <p align="center">
-<img src="docs/characteristic_comparison.png" width="650">
+<img src="docs/characteristic_comparison.png" width="666">
 </p>
 
 Below is an overview of **Show-o**. The input data, regardless of its modalities, is tokenized and then prompted into a formatted input sequence. Show-o processes text tokens autoregressively with causal attention and image tokens in (discrete) denoising diffusion modeling via full attention, and then generates the desired output. Specifically, Show-o is capable of handling image captioning, visual question answering, text-to-image generation, text-guided inpainting/extrapolation, and mixed modality generation.
