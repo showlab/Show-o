@@ -29,7 +29,6 @@ cryptacular==1.6.2
 cryptography==39.0.2
 cycler==0.12.1
 datasets
-dbus-python==1.2.16
 diffusers==0.30.1
 decorator==5.1.1
 decord==0.6.0
@@ -69,7 +68,6 @@ idna==3.7
 imageio==2.34.1
 imgaug==0.2.6
 iniconfig==2.0.0
-iotop==0.6
 ipaddress==1.0.23
 ipdb==0.13.13
 ipython==8.18.1
@@ -141,7 +139,6 @@ pycurl==7.43.0.6
 pydantic==1.10.15
 pydantic_core==2.18.3
 Pygments==2.18.0
-PyGObject==3.38.0
 PyJWT==2.8.0
 pynvml==11.5.0
 pyope==0.2.2
@@ -151,7 +148,6 @@ pyquaternion==0.9.9
 pyramid==2.0.2
 pyramid-mailer==0.15.1
 pytest==6.2.5
-python-apt==2.2.1
 python-consul==1.1.0
 python-dateutil==2.9.0.post0
 python-engineio==4.9.1
@@ -210,7 +206,6 @@ triton==2.2.0
 typeguard==2.13.3
 typing_extensions==4.12.0
 tzdata==2024.1
-unattended-upgrades==0.1
 urllib3==1.26.18
 velruse==1.1.1
 venusian==3.1.0
