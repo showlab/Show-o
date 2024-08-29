@@ -47,7 +47,8 @@ if __name__ == '__main__':
     #     config=wandb_config,
     # )
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda:1"
     tokenizer = AutoTokenizer.from_pretrained(config.model.showo.llm_model_path, padding_side="left")
 
     uni_prompting = UniversalPrompting(tokenizer, max_text_len=config.dataset.preprocessing.max_seq_length,
@@ -100,7 +101,7 @@ if __name__ == '__main__':
                 assert input_ids_system.shape[-1] == 28
                 input_ids_system = input_ids_system.to(device)
                 input_ids_system = input_ids_system[0]
-
+                print(f"input_ids_system: {input_ids_system}")
                 input_ids = [uni_prompting.text_tokenizer(prompt, return_tensors="pt", padding="longest").input_ids
                                 for prompt in question_input]
 
@@ -109,6 +110,7 @@ if __name__ == '__main__':
                         input_ids, batch_first=True, padding_value=uni_prompting.text_tokenizer.pad_token_id
                 )
                 input_ids = torch.tensor(input_ids).to(device).squeeze(0)
+                print(f"input_ids: {input_ids}")
                 # import pdb; pdb.set_trace()
                 input_ids_llava = torch.cat([
                         (torch.ones(input_ids.shape[0], 1) *uni_prompting.sptids_dict['<|mmu|>']).to(device),
@@ -118,7 +120,7 @@ if __name__ == '__main__':
                         (torch.ones(input_ids.shape[0], 1) * uni_prompting.sptids_dict['<|eoi|>']).to(device),
                         input_ids,
                 ], dim=1).long()
-
+                print(f"input_ids_llava: {input_ids_llava}")
                 images_embeddings = vision_tower(pixel_values[None])
                 images_embeddings = model.mm_projector(images_embeddings)
 
@@ -129,8 +131,7 @@ if __name__ == '__main__':
                 part2 = text_embeddings[:, 2 + SYSTEM_PROMPT_LEN:, :]
                 input_embeddings = torch.cat((part1, images_embeddings, part2), dim=1)
 
-                attention_mask_llava = create_attention_mask_for_mmu_vit(input_embeddings,
-                                                                        system_prompt_len=SYSTEM_PROMPT_LEN)
+                attention_mask_llava = create_attention_mask_for_mmu_vit(input_embeddings,system_prompt_len=SYSTEM_PROMPT_LEN)
 
                 cont_toks_list = model.mmu_generate(input_embeddings=input_embeddings,
                                                     attention_mask=attention_mask_llava[0].unsqueeze(0),
@@ -139,6 +140,7 @@ if __name__ == '__main__':
                                                     eot_token=uni_prompting.sptids_dict['<|eot|>']
                                                     )
             else:
+                print("howdy-------------------------------------------------")
                 input_ids = uni_prompting.text_tokenizer(['USER: \n' + question + ' ASSISTANT:'])[
                     'input_ids']
                 input_ids = torch.tensor(input_ids).to(device)
