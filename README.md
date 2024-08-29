@@ -1,5 +1,7 @@
 <div align="center">
-<h1><font color=#6FA8DC>S</font><font color=#6FB150>h</font><font color=#E16766>o</font><font color=#F7B26B>w</font>-o</h1>
+<p align="center">
+<img src="docs/showo_title.png" width="188">
+</p>
 <h3>One Single Transformer to Unify Multimodal Understanding and Generation</h3>
 
 [Jinheng Xie](https://sierkinhane.github.io/)<sup>1&#42;</sup>&nbsp;
