@@ -30,7 +30,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 ## What is the new about Show-o?
 Below is a characteristics comparison among understanding only, generation only, and unified (understanding \& generation) models. `Vision` and `Language` indicate the representations from specific input modalities. **In this context, `Diffusion` represents both continuous and discrete diffusion.**
 <p align="center">
-<img src="docs/characteristic_comparison.png" width="650">
+<img src="docs/characteristic_comparison.png" width="666">
 </p>
 
 Below is an overview of **Show-o**. The input data, regardless of its modalities, is tokenized and then prompted into a formatted input sequence. Show-o processes text tokens autoregressively with causal attention and image tokens in (discrete) denoising diffusion modeling via full attention, and then generates the desired output. Specifically, Show-o is capable of handling image captioning, visual question answering, text-to-image generation, text-guided inpainting/extrapolation, and mixed modality generation.
