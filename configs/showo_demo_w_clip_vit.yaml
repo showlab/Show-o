@@ -21,14 +21,13 @@ model:
         llm_model_path: 'microsoft/phi-1_5'
         codebook_size: 8192
         num_vq_tokens: 256
+        num_new_special_tokens: 10  # <|soi|> <|eoi|> <|sov|> <|eov|> <|t2i|> <|mmu|> <|t2v|> <|v2v|> <|lvg|> <|pad|>
 
     gradient_checkpointing: True
-    enable_xformers_memory_efficient_attention: True
-
 
 dataset:
     gen_type: "t2i"
-    und_type: "large_cap"
+    und_type: "captioning"
     params:
         batch_size: ${training.batch_size}
         shuffle_buffer_size: 1000
