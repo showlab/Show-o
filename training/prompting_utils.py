@@ -36,7 +36,7 @@ class UniversalPrompting():
         self.ignore_id = ignore_id
         self.cond_dropout_prob = cond_dropout_prob
 
-    def t2i_prompt_predict_next(self, text_ids, image_ids, labels):
+    def t2i_prompt(self, text_ids, image_ids, labels):
 
         device = image_ids.device
         sequence_ids = []
@@ -328,15 +328,10 @@ class UniversalPrompting():
             image_ids = input[1]  # (B, #tokens)
             sequence_ids_with_masks = self.t2i_prompt(text_ids, image_ids, input[2])
 
-        elif task == "t2i_predict_next":
+        elif task == "t2i_plus_lm":
             text_ids = self.text_tokenizer(input[0])['input_ids']  # (B, max_len)
             image_ids = input[1]  # (B, #tokens)
-            sequence_ids_with_masks = self.t2i_prompt_predict_next(text_ids, image_ids, input[2])
-
-        elif task == "t2i_predict_next_plus_lm":
-            text_ids = self.text_tokenizer(input[0])['input_ids']  # (B, max_len)
-            image_ids = input[1]  # (B, #tokens)
-            sequence_ids_with_masks = self.t2i_prompt_predict_next(text_ids[:config.training.batch_size], image_ids,
+            sequence_ids_with_masks = self.t2i_prompt(text_ids[:config.training.batch_size], image_ids,
                                                                    input[2])
             sequence_ids_with_masks_lm = self.lm_prompt(text_ids[config.training.batch_size:], input[3])
             return sequence_ids_with_masks, sequence_ids_with_masks_lm
