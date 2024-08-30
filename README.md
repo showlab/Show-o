@@ -101,7 +101,7 @@ image_path=./inpainting_validation/alpine_lake.jpg
 Welcome to discuss with us and continuously improve the user experience of Show-o.
 Reach us with this [Discord channel](https://discord.gg/Z7xdzYDa) or the WeChat QR code below!
 <p align="center">
-<img src="docs/wechat_0826.jpg" width="256">
+<img src="docs/wechat_0830.jpg" width="256">
 </p>
 
 ### Citation
