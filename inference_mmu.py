@@ -26,7 +26,7 @@ from training.utils import get_config, flatten_omega_conf, image_transform
 from transformers import AutoTokenizer
 from transformers import CLIPImageProcessor
 
-import training.conversation as conversation_lib
+from llava.llava import conversation as conversation_lib
 
 conversation_lib.default_conversation = conversation_lib.conv_templates["phi1.5"]
 SYSTEM_PROMPT = "A chat between a curious user and an artificial intelligence assistant. " \
