@@ -117,20 +117,20 @@ if __name__ == '__main__':
     print(block_mask)
 
     flex_attn = lambda: flex_attention(q, k, v, block_mask=block_mask)
-    print("flexattention: ", do_bench(flex_attn))
+    print("t2i flexattention: ", do_bench(flex_attn))
 
     sequence = torch.randn((B, S), device='cuda')
     block_mask = OAM.create_block_mask(sequence, type='causal')
     print(block_mask)
 
     flex_attn = lambda: flex_attention(q, k, v, block_mask=block_mask)
-    print("flexattention: ", do_bench(flex_attn))
+    print("lm flexattention: ", do_bench(flex_attn))
 
     sequence = torch.randn((B, S), device='cuda')
     block_mask = OAM.create_block_mask(sequence, type='mmu')
     print(block_mask)
 
     flex_attn = lambda: flex_attention(q, k, v, block_mask=block_mask)
-    print("flexattention: ", do_bench(flex_attn))
+    print("mmu flexattention: ", do_bench(flex_attn))
 
 
