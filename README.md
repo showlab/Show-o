@@ -108,7 +108,7 @@ Note that, our training is based on `accelerate`. Please ensure to config your a
 |   ├── 1_gpu.yaml
 |   └── 8_gpu_deepspeed_zero2.yaml
 ```
-Stage 1 - Pre-training on ImageNet-1K dataset. **Note that, we use the internal packages to process the RefinedWeb dataset, and you must manually comment the code part related to language modeling or write a new dataloder for it**.
+Stage 1 - Pre-training on ImageNet-1K dataset. Change the data path to ImageNet-1K in `configs/showo_pretraining_stage1.yaml`. **Note that, we use the internal packages to process the RefinedWeb dataset, and you must manually comment the code part related to language modeling or write a new dataloder for it**.
 ```
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_pretraining_stage1.yaml
 ```
@@ -124,27 +124,27 @@ Once trained, the `checkpoint` folder is structured as follows:
 ├── show-o-training-stage2/ 
 |   └── checkpoint-0
 ```
-Stage 2 - Pre-training on Image-Text dataset.
+Stage 2 - Pre-training on Image-Text dataset. The default dataloader is based on `WebDataset`. Change the data path in `configs/showo_pretraining_stage2.yaml`.
 ```
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_pretraining_stage2.yaml
 ```
-Stage 3 - Pre-training on High-quality Image-Text dataset.
+Stage 3 - Pre-training on High-quality Image-Text dataset. Change the data path in `configs/showo_pretraining_stage3.yaml`
 ```
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_pretraining_stage3.yaml
 ```
-[Option a] Stage 3 - Instruction tuning on LLaVA dataset (llava-pretrain).
+[Option a] Stage 3 - Instruction tuning on LLaVA dataset (llava-pretrain). Change the data path in `llava/llava_data_vq_unified.py`.
 ```
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_instruction_tuning_1.yaml
 ```
-[Option a] Stage 3 - Instruction tuning on LLaVA dataset (llava-tuning).
+[Option a] Stage 3 - Instruction tuning on LLaVA dataset (llava-tuning).  Change the data path in `llava/llava_data_vq_unified.py`.
 ```
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_instruction_tuning_2.yaml
 ```
-[Option c] Stage 3 - Instruction tuning on LLaVA dataset (llava-pretrain) with CLIP-ViT.
+[Option c] Stage 3 - Instruction tuning on LLaVA dataset (llava-pretrain) with CLIP-ViT. Change the data path in `llava/llava_pretrain_data.py`.
 ```
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train_w_clip_vit.py config=configs/showo_instruction_tuning_1_w_clip_vit.yaml
 ```
-[Option c] Stage 3 - Instruction tuning on LLaVA dataset (llava-tuning) with CLIP-ViT.
+[Option c] Stage 3 - Instruction tuning on LLaVA dataset (llava-tuning) with CLIP-ViT. Change the data path in `llava/llava_instuct_data.py`.
 ```
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train_w_clip_vit.py config=configs/showo_instruction_tuning_2_w_clip_vit.yaml
 ```
