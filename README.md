@@ -17,11 +17,12 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 <sup>1</sup> [Show Lab](https://sites.google.com/view/showlab/home?authuser=0), National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
-[![arXiv](https://img.shields.io/badge/arXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/abs/2408.12528) [![page](https://img.shields.io/badge/page-<Showo>-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/Z7xdzYDa) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_0826.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
+[![arXiv](https://img.shields.io/badge/arXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/abs/2408.12528) [![webpage](https://img.shields.io/badge/webpage-Showo-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/Z7xdzYDa) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_0826.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
 
 </div>
 
 **News**
+* **[2024-09-02]** We release the training code for pre-training and instruction tuning! 🔥🔥
 * **[2024-09-01]** Add [FlexAttention implementation](https://github.com/showlab/Show-o/blob/main/training/omini_attention.py) for accleration. Thanks to [@Horace](https://github.com/Chillee) for providing examples.
 * **[2024-08-28]** We maintain a repo of [Awesome Unified Multimodal Models](https://github.com/showlab/Awesome-Unified-Multimodal-Models). If you are interested in unified models, star and watch it to get latest updates!
 * **[2024-08-27]** Add integration to Hugging Face! Thanks to @[NielsRogge](https://github.com/NielsRogge).
@@ -97,6 +98,56 @@ mode='extrapolation' extra_direction='left *** left *** left *** right *** right
 image_path=./inpainting_validation/alpine_lake.jpg
 ```
 <img src="docs/github_extrapolation.png" width="1000">
+
+## Training pipeline
+Note that, our training is based on `accelerate`. Please ensure to config your accelerate for distributed training. We provide config examples below for (distributed) training on a single GPU or multiple GPUs.
+```
+├── accelerate_configs/ 
+|   ├── multi_nodes
+|   |   ├—— ...
+|   ├── 1_gpu.yaml
+|   └── 8_gpu_deepspeed_zero2.yaml
+```
+Stage 1 - Pre-training on ImageNet-1K dataset. **Note that, we use the internal packages to process the RefinedWeb dataset, and you must manually comment the code part related to language modeling or write a new dataloder for it**.
+```
+accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_pretraining_stage1.yaml
+```
+Once trained, the `checkpoint` folder is structured as follows:
+```
+├── show-o-training-stage1/ 
+|   ├── ...
+|   ├── checkpoint-500000
+|   └── config.yaml
+```
+**A bit cumbersome.** Just create a new output folder (edited in the yaml config) for stage 2, copy the latest `checkpoint` of stage 1 to this folder, and rename it to `checkpoint-0`. It will be automatically resumed for next stage training. **Apply same procedures for the `resume` training in the following stages.**
+```
+├── show-o-training-stage2/ 
+|   └── checkpoint-0
+```
+Stage 2 - Pre-training on Image-Text dataset.
+```
+accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_pretraining_stage2.yaml
+```
+Stage 3 - Pre-training on High-quality Image-Text dataset.
+```
+accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_pretraining_stage3.yaml
+```
+[Option a] Stage 3 - Instruction tuning on LLaVA dataset (llava-pretrain).
+```
+accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_instruction_tuning_1.yaml
+```
+[Option a] Stage 3 - Instruction tuning on LLaVA dataset (llava-tuning).
+```
+accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_instruction_tuning_2.yaml
+```
+[Option c] Stage 3 - Instruction tuning on LLaVA dataset (llava-pretrain) with CLIP-ViT.
+```
+accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train_w_clip_vit.py config=configs/showo_instruction_tuning_1_w_clip_vit.yaml
+```
+[Option c] Stage 3 - Instruction tuning on LLaVA dataset (llava-tuning) with CLIP-ViT.
+```
+accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train_w_clip_vit.py config=configs/showo_instruction_tuning_2_w_clip_vit.yaml
+```
 
 ### Join Discussion
 Welcome to discuss with us and continuously improve the user experience of Show-o.
