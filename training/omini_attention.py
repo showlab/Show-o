@@ -18,7 +18,7 @@ torch.set_default_device('cuda')
 from torch.nn.attention.flex_attention import create_block_mask, flex_attention
 flex_attention = torch.compile(flex_attention, dynamic=False)
 
-# Class for Omni-Attention Mechanism
+# Class for Omni-Attention Mechanism based on FlexAttention (torch >= 2.5)
 class OmniAttentionMechanism(torch.nn.Module):
     def __init__(self, batch_size_t2i, batch_size_lm, batch_size_mmu, S, image_begin_ends=[(128 + 1, 128 + 1 + 258)], device='cuda'):
         super().__init__()
