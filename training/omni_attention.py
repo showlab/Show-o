@@ -20,7 +20,9 @@ flex_attention = torch.compile(flex_attention, dynamic=False)
 
 # Class for Omni-Attention Mechanism based on FlexAttention (torch >= 2.5)
 class OmniAttentionMechanism(torch.nn.Module):
-    def __init__(self, batch_size_t2i, batch_size_lm, batch_size_mmu, S, image_begin_ends=[(128 + 1, 128 + 1 + 258)], device='cuda'):
+
+    # def __init__(self, batch_size_t2i, batch_size_lm, batch_size_mmu, S, image_begin_ends=[(128 + 1, 128 + 1 + 258)], device='cuda'):
+    def __init__(self, batch_size_t2i, batch_size_lm, batch_size_mmu, S, image_begin_ends=[(512, 1024)], device='cuda'):
         super().__init__()
 
         self.batch_size_t2i = batch_size_t2i
@@ -100,9 +102,34 @@ class OmniAttentionMechanism(torch.nn.Module):
 
 if __name__ == '__main__':
 
-    S = 1024 # must be the multiple of 128
+    from triton.testing import do_bench
+
+    B = 12
+    S = 1024  # must be the multiple of 128
+    H = 8
+    D = 64
+    q, k, v = [torch.randn(B, H, S, D, dtype=torch.float16) for _ in range(3)]
+
     OAM = OmniAttentionMechanism(4, 4, 4, S)
-    sequence = torch.randn((12, S), device='cuda')
-    block_mask = OAM.create_block_mask(sequence, type='mixed-t2i-lm-mmu')
+    sequence = torch.randn((B, S), device='cuda')
+    block_mask = OAM.create_block_mask(sequence, type='t2i')
     print(block_mask)
+
+    flex_attn = lambda: flex_attention(q, k, v, block_mask=block_mask)
+    print("flexattention: ", do_bench(flex_attn))
+
+    sequence = torch.randn((B, S), device='cuda')
+    block_mask = OAM.create_block_mask(sequence, type='causal')
+    print(block_mask)
+
+    flex_attn = lambda: flex_attention(q, k, v, block_mask=block_mask)
+    print("flexattention: ", do_bench(flex_attn))
+
+    sequence = torch.randn((B, S), device='cuda')
+    block_mask = OAM.create_block_mask(sequence, type='mmu')
+    print(block_mask)
+
+    flex_attn = lambda: flex_attention(q, k, v, block_mask=block_mask)
+    print("flexattention: ", do_bench(flex_attn))
+
 
