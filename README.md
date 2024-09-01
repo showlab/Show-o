@@ -43,7 +43,7 @@ Below is an overview of **Show-o**. The input data, regardless of its modalities
 
 ## TODO
 - [X] Release the inference code.
-- [ ] Release the training code (in the coming weeks).
+- [X] Release the training code.
 - [ ] Scale up the model size (based on LLaMA3) and increase the number of training data.
 
 ## Hugging Face models
