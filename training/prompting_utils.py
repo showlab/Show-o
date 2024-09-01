@@ -522,7 +522,7 @@ def create_attention_mask_for_mmu_vit(
     N, L, H = sequence.shape
     causal_mask = torch.tril(torch.ones((N, 1, L, L), dtype=torch.bool)).to(sequence.device)
     index = 1 + system_prompt_len + 1 + 576
-
+    # TODO: PART OF SYSTEM PROMPT SHOULD BE CAUSAL ALSO
     causal_mask[:, :, :, :index] = 1
     if return_inverse_mask:
         inverted_mask = 1.0 - causal_mask.type(torch.int64)
