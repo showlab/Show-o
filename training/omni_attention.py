@@ -50,6 +50,7 @@ class OmniAttentionMechanism(torch.nn.Module):
     def mmu_mask(self, b, h, q_idx, kv_idx, num_clip_vit_feat=576):
         return (q_idx >= kv_idx) | (kv_idx <= num_clip_vit_feat + 3)
 
+    # TODO: A bit cumbersome. Very slow. Should be improved.
     def mixed_mask(self, b, h, q_idx, kv_idx, num_clip_vit_feat=576):
         # causal mask that excludes padding regions
         causal_mask = ~(kv_idx < self.pad_ends[b, kv_idx]) & (q_idx >= kv_idx)
