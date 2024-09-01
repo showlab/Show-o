@@ -108,7 +108,7 @@ Note that, our training is based on `accelerate`. Please ensure to config your a
 |   ├── 1_gpu.yaml
 |   └── 8_gpu_deepspeed_zero2.yaml
 ```
-Stage 1 - Pre-training on ImageNet-1K dataset. Change the data path to ImageNet-1K in `configs/showo_pretraining_stage1.yaml`. **Note that, we use the internal packages to process the RefinedWeb dataset, and you must manually comment the code part related to language modeling or write a new dataloder for it**.
+Stage 1 - Pre-training on ImageNet-1K dataset. Change the data path to ImageNet-1K in `configs/showo_pretraining_stage1.yaml`. **Note that, we use the internal packages to process the RefinedWeb dataset, and you must manually comment the code part related to language modeling in `training/train.py` or write a new dataloder**.
 ```
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_pretraining_stage1.yaml
 ```
