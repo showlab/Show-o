@@ -103,6 +103,6 @@ if __name__ == '__main__':
     S = 1024 # must be the multiple of 128
     OAM = OmniAttentionMechanism(4, 4, 4, S)
     sequence = torch.randn((12, S), device='cuda')
-    block_mask = OAM.create_block_mask(sequence, type='causal')
+    block_mask = OAM.create_block_mask(sequence, type='mixed-t2i-lm-mmu')
     print(block_mask)
 
