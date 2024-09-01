@@ -60,7 +60,7 @@ class OmniAttentionMechanism(torch.nn.Module):
         t2i_mask = eye_mask ^ (causal_mask | full_mask)
 
         lm_mask = q_idx >= kv_idx
-        mmu_mask = (q_idx >= kv_idx) | (kv_idx <= num_clip_vit_feat + 1)
+        mmu_mask = (q_idx >= kv_idx) | (kv_idx <= num_clip_vit_feat + 3)
 
         return (((b < self.batch_size_t2i) & t2i_mask)
                 ^ ((b >= self.batch_size_t2i) & (b < (self.batch_size_t2i + self.batch_size_lm)) & lm_mask)
