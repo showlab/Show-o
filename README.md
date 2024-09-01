@@ -103,7 +103,7 @@ image_path=./inpainting_validation/alpine_lake.jpg
 Note that, our training is based on `accelerate`. Please ensure to config your accelerate for distributed training. We provide config examples below for (distributed) training on a single GPU or multiple GPUs.
 ```
 ├── accelerate_configs/ 
-|   ├── multi_nodes
+|   ├── multi_nodes (6x8 GPUs)
 |   |   ├—— ...
 |   ├── 1_gpu.yaml
 |   └── 8_gpu_deepspeed_zero2.yaml
