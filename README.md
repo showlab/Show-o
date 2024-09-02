@@ -100,7 +100,9 @@ image_path=./inpainting_validation/alpine_lake.jpg
 <img src="docs/github_extrapolation.png" width="1000">
 
 ## Training pipeline
-Note that, our training is based on `accelerate`. Please ensure to config your accelerate for distributed training. We provide config examples below for (distributed) training on a single GPU or multiple GPUs.
+**Prepare your training data and change the data path in `configs/xx.yaml`.**
+
+Note that, our training process is based on `accelerate`. Please ensure to config your `accelerate` for distributed training. We provide config examples below for (distributed) training on a single GPU or multiple GPUs.
 ```
 ├── accelerate_configs/ 
 |   ├── multi_nodes (6x8 GPUs)
