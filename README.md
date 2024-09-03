@@ -152,23 +152,23 @@ accelerate launch --config_file path/to/your/accelerate_config --main_process_po
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train_w_clip_vit.py config=configs/showo_instruction_tuning_2_w_clip_vit.yaml
 ```
 
-### Join Discussion
-Welcome to discuss with us and continuously improve the user experience of Show-o.
-Reach us with this [Discord channel](https://discord.gg/Z7xdzYDa) or the WeChat QR code below!
-<p align="center">
-<img src="docs/wechat_0830.jpg" width="256">
-</p>
-
 ### Request new features? Willing to contribute?
 We welcome your bravo new ideas and contributions! If you would like to see any new features in Show-o, or you want to contribute to this project, please fill in [this form](https://docs.google.com/forms/d/e/1FAIpQLSdBlfEWgC2sNBsczyxtzIDE9lJ726ALzyRVn19nc8hJ-ymi2Q/viewform?usp=sf_link)!
 
-**Existing Requested Features**
+**Pending Requested Features**
 - [ ] Mixed-modal generation
 - [ ] Support training on more datasets
 - [ ] Visual tokenizer training
 
 <p align="center">
 <img src="docs/show-o-want-u.png" width="512">
+</p>
+
+### Join Discussion
+Welcome to discuss with us and continuously improve the user experience of Show-o.
+Reach us with this [Discord channel](https://discord.gg/Z7xdzYDa) or the WeChat QR code below!
+<p align="center">
+<img src="docs/wechat_0830.jpg" width="256">
 </p>
 
 
