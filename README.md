@@ -159,6 +159,19 @@ Reach us with this [Discord channel](https://discord.gg/Z7xdzYDa) or the WeChat 
 <img src="docs/wechat_0830.jpg" width="256">
 </p>
 
+### Request new features? Willing to contribute?
+We welcome your bravo new ideas and contributions! If you would like to see any new features in Show-o, or you want to contribute to this project, please fill in [this form](https://docs.google.com/forms/d/e/1FAIpQLSdBlfEWgC2sNBsczyxtzIDE9lJ726ALzyRVn19nc8hJ-ymi2Q/viewform?usp=sf_link)!
+
+**Existing Requested Features**
+- [ ] Mixed-modal generation
+- [ ] Support training on more datasets
+- [ ] Visual tokenizer training
+
+<p align="center">
+<img src="docs/show-o-want-u.png" width="512">
+</p>
+
+
 ### Citation
 To cite the paper and model, please use the below:
 ```
