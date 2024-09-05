@@ -160,6 +160,8 @@ We welcome your bravo new ideas and contributions! If you would like to see any 
 - [ ] Support training on more datasets
 - [ ] Visual tokenizer training
 
+Find more at [Contributing and Roadmap](CONTRIBUTING_ROADMAP.md).
+
 <p align="center">
 <img src="docs/show-o-want-u.png" width="512">
 </p>
