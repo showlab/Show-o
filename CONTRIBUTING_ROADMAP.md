@@ -85,9 +85,9 @@ Describe modifications in English, without ending with a period.
 > e.g., git commit -m "[docs]: add a contributing.md file"
 
 ## Roadmap
-- 🛠️ Mixed-modal generation. (In progress by YOUR_NAME)
-- 🛠️ Support more modalities. (In progress by YOUR_NAME)
-- 🛠️ Efficient training/inference. (In progress by YOUR_NAME)
+- 🛠️ Mixed-modal generation. (In progress by [@hrodruck](https://github.com/hrodruck))
+- 🛠️ Support more modalities. (In progress by by [@LJungang](https://github.com/LJungang))
+- 🛠️ Efficient training/inference. (In progress by [@KevinZeng08](https://github.com/KevinZeng08))
 - 📣 Support training on more datasets. (Help wanted!)
 - 📣 Visual tokenizer training. (Help wanted!)
 
