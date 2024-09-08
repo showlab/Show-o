@@ -170,7 +170,7 @@ Find more at [Contributing and Roadmap](CONTRIBUTING_ROADMAP.md).
 Welcome to discuss with us and continuously improve the user experience of Show-o.
 Reach us with this [Discord channel](https://discord.gg/Z7xdzYDa) or the WeChat QR code below!
 <p align="center">
-<img src="docs/wechat_0830.jpg" width="256">
+<img src="docs/wechat_QR_code.jpg" width="256">
 </p>
 
 
