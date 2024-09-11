@@ -187,6 +187,14 @@ def main():
     # Initialize Show-o model
     if config.model.showo.load_from_showo:
         model = Showo.from_pretrained(config.model.showo.pretrained_model_path).to(accelerator.device)
+        if config.model.showo.vocab_size != model.vocab_size:
+            model.showo.resize_token_embeddings(config.model.showo.vocab_size)
+            model.config.codebook_size = config.model.showo.codebook_size
+            model.config.vocab_size = config.model.showo.vocab_size
+            model.vocab_size = config.model.showo.vocab_size
+            model.output_size = config.model.showo.vocab_size
+            model.config.mask_token_id = model.config.vocab_size - 1
+            model.mask_token_id = model.config.vocab_size - 1
     else:
         model = Showo(**config.model.showo).to(accelerator.device)
     mask_id = model.mask_token_id
@@ -733,7 +741,8 @@ def visualize_predictions(
     model.eval()
 
     recons_images = vq_model.decode_code(image_tokens_ori - len(uni_prompting.text_tokenizer))
-    recons_images = torch.clamp(127.5 * recons_images + 128.0, 0, 255)
+    recons_images = torch.clamp((recons_images + 1.0) / 2.0, min=0.0, max=1.0)
+    recons_images *= 255.0
     recons_images = recons_images.permute(0, 2, 3, 1).cpu().numpy().astype(np.uint8)
 
     images = torch.clamp((ori_images + 1.0) / 2.0, min=0.0, max=1.0)
@@ -744,7 +753,7 @@ def visualize_predictions(
                   config.model.showo.llm_vocab_size + config.model.showo.num_new_special_tokens:-1]
     predictions = predictions.argmax(axis=-1)
 
-    mask_token_id = model.mask_token_id
+    mask_token_id = model.mask_token_id - len(uni_prompting.text_tokenizer)
     input_ids = input_ids[:config.training.batch_size_t2i, -(config.model.showo.num_vq_tokens + 1):-1:] - len(
         uni_prompting.text_tokenizer)
     mask_ratio = list((torch.where(input_ids == mask_token_id, 1, 0).sum(

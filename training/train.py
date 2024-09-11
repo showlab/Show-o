@@ -41,7 +41,7 @@ from training.data import Text2ImageDataset
 from training.imagenet_dataset import ImageNetDataset
 from parquet import RefinedWebDataset
 
-from models import Showo, MAGVITv2, VQ_16, get_mask_chedule
+from models import Showo, MAGVITv2, get_mask_chedule
 from training.prompting_utils import UniversalPrompting, create_attention_mask_predict_next, \
     create_attention_mask_for_mmu
 from models.lr_schedulers import get_scheduler
@@ -191,6 +191,14 @@ def main():
     # Initialize Show-o model
     if config.model.showo.load_from_showo:
         model = Showo.from_pretrained(config.model.showo.pretrained_model_path).to(accelerator.device)
+        if config.model.showo.vocab_size != model.vocab_size:
+            model.showo.resize_token_embeddings(config.model.showo.vocab_size)
+            model.config.codebook_size = config.model.showo.codebook_size
+            model.config.vocab_size = config.model.showo.vocab_size
+            model.vocab_size = config.model.showo.vocab_size
+            model.output_size = config.model.showo.vocab_size
+            model.config.mask_token_id = model.config.vocab_size - 1
+            model.mask_token_id = model.config.vocab_size - 1
     else:
         model = Showo(**config.model.showo).to(accelerator.device)
     mask_id = model.mask_token_id
@@ -283,6 +291,23 @@ def main():
             train_dataloader_t2i.num_batches / config.training.gradient_accumulation_steps)
         num_train_epochs = math.ceil(config.training.max_train_steps / num_update_steps_per_epoch)
 
+    elif config.dataset.gen_type == "t2i_parquet":
+        # this part relies on the internal packages, which will not be released
+        num_update_steps_per_epoch = math.ceil(config.experiment.max_train_examples_t2i / total_batch_size_t2i)
+        num_train_epochs = math.ceil(config.training.max_train_steps / num_update_steps_per_epoch)
+
+        train_dataloader_t2i = create_imagetext_dataloader(
+            train_shards_path_or_url=dataset_config.train_t2i_shards_path_or_url,
+            batch_size=config.training.batch_size_t2i,
+            image_size=preproc_config.resolution,
+            num_workers=dataset_config.num_workers,
+            num_readers=32,
+            predefined_steps=num_update_steps_per_epoch,
+            drop_last=True,
+            shuffle=True,
+            shuffle_buffer_size=dataset_config.shuffle_buffer_size
+        )
+
     elif config.dataset.gen_type == "imagenet1k":
         dataset_imagenet = ImageNetDataset(
             dataset_config.train_t2i_shards_path_or_url,
@@ -336,6 +361,20 @@ def main():
             add_caption_prompt=dataset_config.add_caption_prompt,
         )
         train_dataloader_mmu = dataset_mmu.train_dataloader
+
+    elif config.dataset.und_type == "captioning_parquet":
+        train_dataloader_mmu = create_imagetext_dataloader(
+            train_shards_path_or_url=dataset_config.train_mmu_shards_path_or_url,
+            batch_size=config.training.batch_size_mmu,
+            image_size=preproc_config.resolution,
+            num_workers=dataset_config.num_workers,
+            num_readers=32,
+            predefined_steps=num_update_steps_per_epoch,
+            drop_last=True,
+            shuffle=True,
+            shuffle_buffer_size=dataset_config.shuffle_buffer_size,
+            is_captioning=True
+        )
 
     elif config.dataset.und_type == "llava_pretrain":
         train_dataloader_mmu = get_instruct_data_loader(
@@ -690,7 +729,8 @@ def visualize_predictions(
     model.eval()
 
     recons_images = vq_model.decode_code(image_tokens_ori - len(uni_prompting.text_tokenizer))
-    recons_images = torch.clamp(127.5 * recons_images + 128.0, 0, 255)
+    recons_images = torch.clamp((recons_images + 1.0) / 2.0, min=0.0, max=1.0)
+    recons_images *= 255.0
     recons_images = recons_images.permute(0, 2, 3, 1).cpu().numpy().astype(np.uint8)
 
     images = torch.clamp((ori_images + 1.0) / 2.0, min=0.0, max=1.0)
@@ -701,7 +741,7 @@ def visualize_predictions(
                   config.model.showo.llm_vocab_size + config.model.showo.num_new_special_tokens:-1]
     predictions = predictions.argmax(axis=-1)
 
-    mask_token_id = config.model.showo.codebook_size
+    mask_token_id = model.mask_token_id - len(uni_prompting.text_tokenizer)
     input_ids = input_ids[:config.training.batch_size_t2i, -(config.model.showo.num_vq_tokens + 1):-1:] - len(
         uni_prompting.text_tokenizer)
     mask_ratio = list((torch.where(input_ids == mask_token_id, 1, 0).sum(
