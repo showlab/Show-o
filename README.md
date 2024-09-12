@@ -22,6 +22,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 </div>
 
 **News**
+* **[2024-09-12]** Arxiv paper updated to include preliminaries about discrete diffusion.
 * **[2024-09-03]** We deploy an online demo on [Hugging Face Space](https://huggingface.co/spaces/showlab/Show-o). 🤗 Have fun!
 * **[2024-09-02]** **We release the training code for pre-training and instruction tuning!** 🔥🔥
 * **[2024-09-01]** Add [FlexAttention implementation](https://github.com/showlab/Show-o/blob/main/training/omni_attention.py) for accleration. Thanks to [@Horace](https://github.com/Chillee) for providing examples.
