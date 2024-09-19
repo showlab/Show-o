@@ -47,13 +47,14 @@ class OmniAttentionMechanism(torch.nn.Module):
         eye_mask = (q_idx == kv_idx)
         return eye_mask ^ (causal_mask | full_mask)
 
-    # TODO: mmu_mask is currently not correct and should be modified.
-    def mmu_mask(self, b, h, q_idx, kv_idx, num_clip_vit_feat=576):
-        return (q_idx >= kv_idx) | (kv_idx <= num_clip_vit_feat + 3)
+    # TODO: check the boundary.
+    def mmu_mask(self, b, h, q_idx, kv_idx, eoi_index=258):
+        return (q_idx >= kv_idx) | (kv_idx <= eoi_index)
 
-    # TODO: mmu_vit_mask is currently not correct and should be modified.
-    def mmu_vit_mask(self, b, h, q_idx, kv_idx, num_clip_vit_feat=576):
-        return (q_idx >= kv_idx) | (kv_idx <= num_clip_vit_feat + 3)
+    # TODO: check the boundary.
+    def mmu_vit_mask(self, b, h, q_idx, kv_idx, system_prompt_len=28, num_clip_vit_feat=576):
+        index = 1 + system_prompt_len + 1 + num_clip_vit_feat
+        return (q_idx >= kv_idx) | (kv_idx >= (1 + system_prompt_len + 1) & kv_idx < index)
 
     # TODO: A bit cumbersome. Very slow. Should be improved.
     def mixed_mask(self, b, h, q_idx, kv_idx, num_clip_vit_feat=576):
