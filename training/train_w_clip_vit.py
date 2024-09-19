@@ -762,7 +762,7 @@ def visualize_predictions(
                   config.model.showo.llm_vocab_size + config.model.showo.num_new_special_tokens:-1]
     predictions = predictions.argmax(axis=-1)
 
-    mask_token_id = model.mask_token_id - len(uni_prompting.text_tokenizer)
+    mask_token_id = config.model.showo.vocab_size - 1 - len(uni_prompting.text_tokenizer)
     input_ids = input_ids[:config.training.batch_size_t2i, -(config.model.showo.num_vq_tokens + 1):-1:] - len(
         uni_prompting.text_tokenizer)
     mask_ratio = list((torch.where(input_ids == mask_token_id, 1, 0).sum(
