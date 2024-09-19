@@ -450,6 +450,13 @@ def main():
 
         return input_ids, labels, mask_prob, image_tokens
 
+    if accelerator.mixed_precision == "fp16":
+        images_feat_dtype = torch.float16
+    elif accelerator.mixed_precision == "bf16":
+        images_feat_dtype = torch.bfloat16
+    else:
+        images_feat_dtype = torch.float32
+
     batch_time_m = AverageMeter()
     data_time_m = AverageMeter()
     end = time.time()
@@ -501,6 +508,7 @@ def main():
             # *-------*-------*-------*-------*-------*-------*-------*-------*-------*-------*-------*
             # Build formatted sequences for captioning/multimodal understanding
             # *-------*-------*-------*-------*-------*-------*-------*-------*-------*-------*-------*
+
             if config.dataset.und_type == "llava_pretrain":
                 pixel_values_mmu, input_ids_mmu, labels_mmu = (batch["mmu_flow"]["images"],
                                                                batch["mmu_flow"]["input_ids"],
@@ -519,15 +527,8 @@ def main():
                     input_ids_mmu
                 ], dim=1).long()
 
-                if accelerator.mixed_precision == "fp16":
-                    image_dtype = torch.float16
-                elif accelerator.mixed_precision == "bf16":
-                    image_dtype = torch.bfloat16
-                else:
-                    image_dtype = torch.float32
-
                 # TODO: check image pre-process
-                images_feat = vision_tower(pixel_values_mmu).to(image_dtype)
+                images_feat = vision_tower(pixel_values_mmu).to(images_feat_dtype)
                 if hasattr(model, 'module'):
                     images_embeddings = model.module.mm_projector(images_feat)
                     text_embeddings = model.module.showo.model.embed_tokens(input_ids_mmu)
@@ -566,7 +567,7 @@ def main():
                     input_ids_mmu,
                 ], dim=1).long()
 
-                images_feat = vision_tower(pixel_values_mmu)
+                images_feat = vision_tower(pixel_values_mmu).to(images_feat_dtype)
                 if hasattr(model, 'module'):
                     images_embeddings = model.module.mm_projector(images_feat)
                     text_embeddings = model.module.showo.model.embed_tokens(input_ids_mmu)
