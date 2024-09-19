@@ -347,7 +347,7 @@ def main():
             local_rank=accelerator.process_index,
             max_length=preproc_config.max_seq_length - (576 - config.model.showo.num_vq_tokens),
         )
-        SYSTEM_PROMPT_LEN = 28
+        SYSTEM_PROMPT_LEN = 0
 
     elif config.dataset.und_type == "llava_tuning":
         from llava.llava_instruct_data import get_instruct_data_loader
@@ -359,7 +359,7 @@ def main():
             local_rank=accelerator.process_index,
             max_length=preproc_config.max_seq_length - (576 - config.model.showo.num_vq_tokens),
         )
-        SYSTEM_PROMPT_LEN = 0
+        SYSTEM_PROMPT_LEN = 28
 
     else:
         raise NotImplementedError(f"Unsupported dataset type {config.dataset.und_type}")
