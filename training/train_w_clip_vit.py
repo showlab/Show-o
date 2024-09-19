@@ -52,7 +52,6 @@ from torch.utils.data.distributed import DistributedSampler
 
 from training.utils import get_config, flatten_omega_conf, mask_or_random_replace_tokens, AverageMeter
 
-SYSTEM_PROMPT_LEN = 28
 
 try:
     import apex
@@ -348,6 +347,7 @@ def main():
             local_rank=accelerator.process_index,
             max_length=preproc_config.max_seq_length - (576 - config.model.showo.num_vq_tokens),
         )
+        SYSTEM_PROMPT_LEN = 28
 
     elif config.dataset.und_type == "llava_tuning":
         from llava.llava_instruct_data import get_instruct_data_loader
@@ -359,6 +359,7 @@ def main():
             local_rank=accelerator.process_index,
             max_length=preproc_config.max_seq_length - (576 - config.model.showo.num_vq_tokens),
         )
+        SYSTEM_PROMPT_LEN = 0
 
     else:
         raise NotImplementedError(f"Unsupported dataset type {config.dataset.und_type}")
