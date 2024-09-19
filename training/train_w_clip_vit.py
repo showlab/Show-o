@@ -402,7 +402,7 @@ def main():
 
             accelerator.print(f"Resuming from checkpoint {path}/unwrapped_model/pytorch_model.bin")
             state_dict = torch.load(f'{path}/unwrapped_model/pytorch_model.bin', map_location="cpu")
-            model.load_state_dict(state_dict, strict=True)
+            model.load_state_dict(state_dict, strict=False)
             del state_dict
 
     ##################################
@@ -519,8 +519,15 @@ def main():
                     input_ids_mmu
                 ], dim=1).long()
 
+                if accelerator.mixed_precision == "fp16":
+                    image_dtype = torch.float16
+                elif accelerator.mixed_precision == "bf16":
+                    image_dtype = torch.bfloat16
+                else:
+                    image_dtype = torch.float32
+
                 # TODO: check image pre-process
-                images_feat = vision_tower(pixel_values_mmu)
+                images_feat = vision_tower(pixel_values_mmu).to(image_dtype)
                 if hasattr(model, 'module'):
                     images_embeddings = model.module.mm_projector(images_feat)
                     text_embeddings = model.module.showo.model.embed_tokens(input_ids_mmu)
