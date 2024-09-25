@@ -66,7 +66,7 @@ dataset:
 optimizer:
     name: adamw
     params: # default adamw params
-        learning_rate: 1e-4
+        learning_rate: 2e-5
         scale_lr: False # scale learning rate by total batch size
         beta1: 0.9
         beta2: 0.999
@@ -87,7 +87,7 @@ training:
     mixed_precision: "bf16"
     enable_tf32: True
     seed: 10086
-    max_train_steps: 100000
+    max_train_steps: 20000
     overfit_one_batch: False
     cond_dropout_prob: 0.1
     min_masking_rate: 0.0
