@@ -17,7 +17,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 <sup>1</sup> [Show Lab](https://sites.google.com/view/showlab/home?authuser=0), National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
-[![ArXiv](https://img.shields.io/badge/ArXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/abs/2408.12528) [![Webpage](https://img.shields.io/badge/Webpage-Showo-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![Demo](https://img.shields.io/badge/Demo-HuggingFace-<COLOR>.svg)](https://huggingface.co/spaces/showlab/Show-o) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/p6k7XupM) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qr_3.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
+[![ArXiv](https://img.shields.io/badge/ArXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/abs/2408.12528) [![Webpage](https://img.shields.io/badge/Webpage-Showo-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![Demo](https://img.shields.io/badge/Demo-HuggingFace-<COLOR>.svg)](https://huggingface.co/spaces/showlab/Show-o) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/p6k7XupM) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
 
 </div>
 
@@ -28,7 +28,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 * **[2024-09-01]** Add [FlexAttention implementation](https://github.com/showlab/Show-o/blob/main/training/omni_attention.py) for accleration. Thanks to [@Horace](https://github.com/Chillee) for providing examples.
 * **[2024-08-28]** We maintain a repo of [Awesome Unified Multimodal Models](https://github.com/showlab/Awesome-Unified-Multimodal-Models). If you are interested in unified models, star and watch it to get latest updates!
 * **[2024-08-27]** Add integration to Hugging Face! Thanks to @[NielsRogge](https://github.com/NielsRogge).
-* **[2024-08-26]** We build two community platforms to facilitate discussion, request and collaboration! Reach us with [Discord](https://discord.gg/p6k7XupM) and [WeChat](https://github.com/showlab/Show-o/blob/main/docs/wechat_qr_3.jpg)!
+* **[2024-08-26]** We build two community platforms to facilitate discussion, request and collaboration! Reach us with [Discord](https://discord.gg/p6k7XupM) and [WeChat](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg)!
 * **[2024-08-23]** We release the inference code of Show-o (**1.3B**) for multimodal understanding and generation including image captioning, visual question answering (VQA), text-to-image generation, text-guided inpainting and extrapolation.
 
 ## What is the new about Show-o?
@@ -171,7 +171,7 @@ Find more at [Contributing and Roadmap](CONTRIBUTING_ROADMAP.md).
 Welcome to discuss with us and continuously improve the user experience of Show-o.
 Reach us with this [Discord channel](https://discord.gg/p6k7XupM) or the WeChat QR code below!
 <p align="center">
-<img src="docs/wechat_qr_3.jpg" width="256">
+<img src="docs/wechat_qa_3.jpg" width="256">
 </p>
 
 
