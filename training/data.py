@@ -150,7 +150,7 @@ class Text2ImageDataset:
         self.is_captioning = is_captioning
         self.add_caption_prompt = add_caption_prompt
         if self.add_caption_prompt:
-            with open("/mnt/bn/vgfm2/test_dit/LlmDiffuser_phi1.5/LlmDiffuser/questions.json") as f:
+            with open("./training/questions.json") as f:
                 self.caption_prompt = json.load(f)
                 self.caption_prompt = ['USER: \n' + prompt + ' ASSISTANT:' for prompt in self.caption_prompt]
         else:
