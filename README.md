@@ -22,6 +22,9 @@ Zhijie Chen<sup>2</sup>&nbsp;
 </div>
 
 **News**
+* **[2024-09-12]** New Supports
+  * Image generation in a resolution of 512x512.
+  * Improve the multimodal understanding capabilities of purely discrete Show-o.
 * **[2024-09-12]** Arxiv paper updated to include preliminaries about discrete diffusion.
 * **[2024-09-03]** We deploy an online demo on [Hugging Face Space](https://huggingface.co/spaces/showlab/Show-o). 🤗 Have fun!
 * **[2024-09-02]** **We release the training code for pre-training and instruction tuning!** 🔥🔥
