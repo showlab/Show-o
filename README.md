@@ -66,7 +66,7 @@ Below is an overview of **Show-o**. The input data, regardless of its modalities
 The Show-o checkpoints can be found on [Hugging Face](https://huggingface.co/showlab):
 * [showlab/show-o-512x512](https://huggingface.co/showlab/show-o-512x512)
 * [showlab/show-o-w-clip-vit-512x512](https://huggingface.co/showlab/show-o-w-clip-vit-512x512)
-* * [showlab/show-o-512x512-wo-llava-tuning](https://huggingface.co/showlab/show-o-512x512-wo-llava-tuning)
+* [showlab/show-o-512x512-wo-llava-tuning](https://huggingface.co/showlab/show-o-512x512-wo-llava-tuning)
 * [showlab/show-o](https://huggingface.co/showlab/show-o)
 * [showlab/show-o-w-clip-vit](https://huggingface.co/showlab/show-o-w-clip-vit)
 * [showlab/magvitv2](https://huggingface.co/showlab/magvitv2)
