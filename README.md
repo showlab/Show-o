@@ -23,8 +23,13 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 **News**
 * **[2024-10-13]** Arxiv paper updated to include new supports.
-  * Image generation in a resolution of 512x512.
+  * Support image generation in a resolution of 512x512.
+  <p align="center"> <img src="docs/show-o-512x512-t2i.png" width="666"></p>
   * Improve the multimodal understanding capabilities of purely discrete Show-o.
+  <p align="center"> <img src="docs/show-o-512x512-mmu.png" width="666"></p>
+  * Explore the impact of dataset scale and image resolution on multimodal understanding capabilities of discrete image tokens.
+  <p align="center"> <img src="docs/show-o-ablation.png" width="666"></p>
+
 * **[2024-09-12]** Arxiv paper updated to include preliminaries about discrete diffusion.
 * **[2024-09-03]** We deploy an online demo on [Hugging Face Space](https://huggingface.co/spaces/showlab/Show-o). 🤗 Have fun!
 * **[2024-09-02]** **We release the training code for pre-training and instruction tuning!** 🔥🔥
@@ -54,7 +59,8 @@ Below is an overview of **Show-o**. The input data, regardless of its modalities
 ## Hugging Face models
 
 The Show-o checkpoints can be found on [Hugging Face](https://huggingface.co/showlab):
-
+* [showlab/show-o-512x512](https://huggingface.co/showlab/show-o-512x512)
+* [showlab/show-o-w-clip-vit-512x512](https://huggingface.co/showlab/show-o-w-clip-vit-512x512)
 * [showlab/show-o](https://huggingface.co/showlab/show-o)
 * [showlab/show-o-w-clip-vit](https://huggingface.co/showlab/show-o-w-clip-vit)
 * [showlab/magvitv2](https://huggingface.co/showlab/magvitv2)
