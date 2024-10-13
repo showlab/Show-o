@@ -25,8 +25,10 @@ Zhijie Chen<sup>2</sup>&nbsp;
 * **[2024-10-13]** Arxiv paper updated to include new supports.
   * Support image generation in a resolution of 512x512.
   <p align="center"> <img src="docs/show-o-512x512-t2i.png" width="666"></p>
+  
   * Improve the multimodal understanding capabilities of purely discrete Show-o.
   <p align="center"> <img src="docs/show-o-512x512-mmu.png" width="666"></p>
+  
   * Explore the impact of dataset scale and image resolution on multimodal understanding capabilities of discrete image tokens.
   <p align="center"> <img src="docs/show-o-ablation.png" width="666"></p>
 
