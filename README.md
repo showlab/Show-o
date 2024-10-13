@@ -22,7 +22,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 </div>
 
 **News**
-* **[2024-09-12]** New Supports
+* **[2024-10-13]** Arxiv paper updated to include new supports.
   * Image generation in a resolution of 512x512.
   * Improve the multimodal understanding capabilities of purely discrete Show-o.
 * **[2024-09-12]** Arxiv paper updated to include preliminaries about discrete diffusion.
