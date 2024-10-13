@@ -83,7 +83,14 @@ wandb login <your wandb keys>
 ```
 Inference demo for **Multimodal Understanding** and you can view the results on wandb.
 ```
+option (c)
+
 python3 inference_mmu.py config=configs/showo_demo_w_clip_vit_512x512.yaml \
+mmu_image_root=./mmu_validation question='Please describe this image in detail. *** Do you think the image is unusual or not?'
+
+or option (a)
+
+python3 inference_mmu.py config=configs/showo_demo_512x512.yaml \
 mmu_image_root=./mmu_validation question='Please describe this image in detail. *** Do you think the image is unusual or not?'
 ```
 <img src="docs/github_mmu.png" width="1000">
