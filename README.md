@@ -21,8 +21,8 @@ Zhijie Chen<sup>2</sup>&nbsp;
  
 </div>
 
-**News**
-* **[2024-10-13]** Arxiv paper updated to include new supports.
+## News
+* **[2024-10-13]** Update Arxiv paper to include new features and experiments.
   * Support image generation in a resolution of 512x512.
   <p align="center"> <img src="docs/show-o-512x512-t2i.png" width="666"></p>
   
@@ -31,6 +31,9 @@ Zhijie Chen<sup>2</sup>&nbsp;
   
   * Explore the impact of dataset scale and image resolution on multimodal understanding capabilities of discrete image tokens.
   <p align="center"> <img src="docs/show-o-ablation.png" width="666"></p>
+  
+  * We release [the weight of Show-o](https://huggingface.co/showlab/show-o-512x512-wo-llava-tuning) before fine-tuning on LLaVA instructional tuning datasets. You can fine-tune it following the configurations in `./configs`.
+  
 
 * **[2024-09-12]** Arxiv paper updated to include preliminaries about discrete diffusion.
 * **[2024-09-03]** We deploy an online demo on [Hugging Face Space](https://huggingface.co/spaces/showlab/Show-o). 🤗 Have fun!
@@ -63,6 +66,7 @@ Below is an overview of **Show-o**. The input data, regardless of its modalities
 The Show-o checkpoints can be found on [Hugging Face](https://huggingface.co/showlab):
 * [showlab/show-o-512x512](https://huggingface.co/showlab/show-o-512x512)
 * [showlab/show-o-w-clip-vit-512x512](https://huggingface.co/showlab/show-o-w-clip-vit-512x512)
+* * [showlab/show-o-512x512-wo-llava-tuning](https://huggingface.co/showlab/show-o-512x512-wo-llava-tuning)
 * [showlab/show-o](https://huggingface.co/showlab/show-o)
 * [showlab/show-o-w-clip-vit](https://huggingface.co/showlab/show-o-w-clip-vit)
 * [showlab/magvitv2](https://huggingface.co/showlab/magvitv2)
@@ -78,16 +82,16 @@ wandb login <your wandb keys>
 ```
 Inference demo for **Multimodal Understanding** and you can view the results on wandb.
 ```
-python3 inference_mmu.py config=configs/showo_demo_w_clip_vit.yaml \
+python3 inference_mmu.py config=configs/showo_demo_w_clip_vit_512x512.yaml \
 mmu_image_root=./mmu_validation question='Please describe this image in detail. *** Do you think the image is unusual or not?'
 ```
 <img src="docs/github_mmu.png" width="1000">
 
-Inference demo for **Text-to-Image Generation** and you can view the results (in a resolution of 256x256) on wandb.
+Inference demo for **Text-to-Image Generation** and you can view the results (in a resolution of 512x512) on wandb.
 ```
-python3 inference_t2i.py config=configs/showo_demo.yaml \
+python3 inference_t2i.py config=configs/showo_demo_512x512.yaml \
 batch_size=1 validation_prompts_file=validation_prompts/showoprompts.txt \
-guidance_scale=1.75 generation_timesteps=18 \
+guidance_scale=5 generation_timesteps=50 \
 mode='t2i'
 ```
 <img src="docs/github_t2i.png" width="1000">
