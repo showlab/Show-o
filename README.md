@@ -22,7 +22,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 </div>
 
 ## News
-* **[2024-10-13]** Update Arxiv paper to include new features and experiments.
+* **[2024-10-13]** Update Arxiv paper to include new features and experimental results.
   * Support image generation in a resolution of 512x512.
   <p align="center"> <img src="docs/show-o-512x512-t2i.png" width="666"></p>
   
