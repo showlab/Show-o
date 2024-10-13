@@ -145,7 +145,7 @@ if __name__ == '__main__':
 
                 cont_toks_list = model.mmu_generate(input_embeddings=input_embeddings,
                                                     attention_mask=attention_mask_llava[0].unsqueeze(0),
-                                                    max_new_tokens=100,
+                                                    max_new_tokens=config.max_new_tokens,
                                                     top_k=top_k,
                                                     eot_token=tokenizer.eos_token_id
                                                     )
@@ -167,7 +167,7 @@ if __name__ == '__main__':
                                                                eoi_id=int(uni_prompting.sptids_dict['<|eoi|>']))
 
                 cont_toks_list = model.mmu_generate(input_ids, attention_mask=attention_mask,
-                                            max_new_tokens=100, top_k=top_k,
+                                            max_new_tokens=config.max_new_tokens, top_k=top_k,
                                             eot_token=uni_prompting.sptids_dict['<|eot|>'])
 
             cont_toks_list = torch.stack(cont_toks_list).squeeze()[None]
