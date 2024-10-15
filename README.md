@@ -29,7 +29,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
   * Improve the multimodal understanding capabilities of purely discrete Show-o.
   <p align="center"> <img src="docs/show-o-512x512-mmu.png" width="666"></p>
   
-  * Explore the impact of dataset scale and image resolution on multimodal understanding capabilities of discrete image tokens. For more information, please refer to the paper.
+  * Explore the impact of dataset scale and image resolution on multimodal understanding capabilities of discrete image tokens. 
   <p align="center"> <img src="docs/show-o-ablation.png" width="666"></p>
   
   * We release [the weight of Show-o](https://huggingface.co/showlab/show-o-512x512-wo-llava-tuning) before fine-tuning on LLaVA instructional tuning datasets. You can fine-tune it following the configurations in `./configs`.
