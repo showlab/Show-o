@@ -29,6 +29,9 @@ Zhijie Chen<sup>2</sup>&nbsp;
   * Improve the multimodal understanding capabilities of purely discrete Show-o.
   <p align="center"> <img src="docs/show-o-512x512-mmu.png" width="666"></p>
   
+  * Improve the performance on the GenEval benchmark.
+  <p align="center"> <img src="docs/show-o-geneval.png" width="666"></p>
+  
   * Explore the impact of dataset scale and image resolution on multimodal understanding capabilities of discrete image tokens. 
   <p align="center"> <img src="docs/show-o-ablation.png" width="666"></p>
   
