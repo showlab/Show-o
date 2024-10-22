@@ -17,7 +17,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 <sup>1</sup> [Show Lab](https://sites.google.com/view/showlab/home?authuser=0), National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
-[![ArXiv](https://img.shields.io/badge/ArXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/html/2408.12528v4) [![Webpage](https://img.shields.io/badge/Webpage-Showo-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![Demo](https://img.shields.io/badge/Demo-HuggingFace-<COLOR>.svg)](https://huggingface.co/spaces/showlab/Show-o) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/p6k7XupM) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
+[![ArXiv](https://img.shields.io/badge/ArXiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/pdf/2408.12528) [![Webpage](https://img.shields.io/badge/Webpage-Showo-<COLOR>.svg)](https://showlab.github.io/Show-o/) [![Demo](https://img.shields.io/badge/Demo-HuggingFace-<COLOR>.svg)](https://huggingface.co/spaces/showlab/Show-o) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/p6k7XupM) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
   
 </div>
 
@@ -32,7 +32,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
   * Improve the performance on the GenEval benchmark.
   <p align="center"> <img src="docs/show-o-geneval.png" width="666"></p>
   
-  * Explore the impact of dataset scale and image resolution on multimodal understanding capabilities of discrete image tokens. 
+  * Explore the impact of dataset scale and image resolution on multimodal understanding capabilities of discrete image tokens. For more information, please refer to the paper.
   <p align="center"> <img src="docs/show-o-ablation.png" width="666"></p>
   
   * We release [the weight of Show-o](https://huggingface.co/showlab/show-o-512x512-wo-llava-tuning) before fine-tuning on LLaVA instructional tuning datasets. You can fine-tune it following the configurations in `./configs`.
