@@ -132,7 +132,7 @@ class UniversalPrompting():
             if len(text_ids[i]) == 0:
                 text_ids[i] = [self.text_tokenizer.bos_token_id]
             elif text_ids[i][0] != self.text_tokenizer.bos_token_id:
-                text_ids[i] = [self.text_tokenizer.eos_token_id] + text_ids[i]
+                text_ids[i] = [self.text_tokenizer.bos_token_id] + text_ids[i]
 
             temp_ids = text_ids[i] + [self.text_tokenizer.eos_token_id]
 
@@ -172,7 +172,7 @@ class UniversalPrompting():
             if len(text_ids[i]) == 0:
                 text_ids[i] = [self.text_tokenizer.bos_token_id]
             elif text_ids[i][0] != self.text_tokenizer.bos_token_id:
-                text_ids[i] = [self.text_tokenizer.eos_token_id] + text_ids[i]
+                text_ids[i] = [self.text_tokenizer.bos_token_id] + text_ids[i]
 
             temp_ids = text_ids[i] + [self.text_tokenizer.eos_token_id]
 
