@@ -88,6 +88,7 @@ lr_scheduler:
 
 training:
     gradient_accumulation_steps: 1
+    noise_type: "mask"
     batch_size_t2i: 5
     batch_size_lm: 2
     batch_size_mmu: 5
