@@ -161,6 +161,12 @@ Stage 2 - Pre-training on Image-Text dataset. The default dataloader is based on
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_pretraining_stage2.yaml
 ```
 Stage 3 - Pre-training on High-quality Image-Text dataset. Change the data path in `configs/showo_pretraining_stage3.yaml`
+
+Copy the pre-trained weights to the `output_dir` (specified in the config)
+```
+├── show-o-training-stage3/ 
+|   └── checkpoint-0
+```
 ```
 accelerate launch --config_file path/to/your/accelerate_config --main_process_port=8888 training/train.py config=configs/showo_pretraining_stage3.yaml
 ```
