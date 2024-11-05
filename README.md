@@ -65,7 +65,7 @@ Below is an overview of **Show-o**. The input data, regardless of its modalities
 - [X] Support image generation in a resolution of 512x512.
 - [ ] Scale up the model size (based on LLaMA3) and increase the number of training data.
 
-## Hugging Face models
+## Hugging Face models and annotations
 
 The Show-o checkpoints can be found on [Hugging Face](https://huggingface.co/showlab):
 * [showlab/show-o-512x512](https://huggingface.co/showlab/show-o-512x512)
@@ -74,6 +74,7 @@ The Show-o checkpoints can be found on [Hugging Face](https://huggingface.co/sho
 * [showlab/show-o](https://huggingface.co/showlab/show-o)
 * [showlab/show-o-w-clip-vit](https://huggingface.co/showlab/show-o-w-clip-vit)
 * [showlab/magvitv2](https://huggingface.co/showlab/magvitv2)
+* [Journeydb-Annotation](https://huggingface.co/datasets/Sierkinhane/JourneyDB-Annotations )
 
 ## Getting Started
 First, set up the environment:
