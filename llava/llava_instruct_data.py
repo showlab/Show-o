@@ -251,6 +251,7 @@ def get_instruct_data_loader(
     dataloader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=batch_size,
+        drop_last=True,
         num_workers=num_workers,
         pin_memory=True,
         collate_fn=partial(
