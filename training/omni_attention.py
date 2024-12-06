@@ -22,6 +22,7 @@ flex_attention = torch.compile(flex_attention, dynamic=False)
 class OmniAttentionMechanism(torch.nn.Module):
     # def __init__(self, batch_size_t2i, batch_size_lm, batch_size_mmu, S, image_begin_ends=[(128 + 1, 128 + 1 + 258)], device='cuda'):
     def __init__(self, batch_size_t2i, batch_size_lm, batch_size_mmu, S, t2i_image_begin_end=[(128, 1152)], mmu_end=1027, right_padding=[(1024, 1280)], device='cuda'):
+    # def __init__(self, batch_size_t2i, batch_size_lm, batch_size_mmu, S, t2i_image_begin_end=[(15, 20)], mmu_end=1027, right_padding=[(1024, 1280)], device='cuda'):
         super().__init__()
 
         self.batch_size_t2i = batch_size_t2i
@@ -60,7 +61,7 @@ class OmniAttentionMechanism(torch.nn.Module):
         """
         # causal mask that excludes padding regions
         # eye_mask = (q_idx == kv_idx) to avoid the NaN issue
-        causal_mask = ~((kv_idx < self.pad_ends[b, kv_idx])) & ((q_idx >= kv_idx)) ^ (q_idx == kv_idx)
+        causal_mask = ~((kv_idx < self.pad_ends[b, kv_idx])) & ((q_idx >= kv_idx)) | (q_idx == kv_idx)
         full_mask = (kv_idx < self.t2i_full_end[q_idx]) & (kv_idx >= self.t2i_full_begin[q_idx])
         # remove right padding attention (becuase we add some padding at the end of the sqeuence to meet the len of flexattention)
         # right_pad_mask = ~((kv_idx < self.right_pad_ends[q_idx]) & (kv_idx >= self.right_pad_begins[q_idx]))
@@ -81,19 +82,21 @@ class OmniAttentionMechanism(torch.nn.Module):
         # causal mask that excludes padding regions
         # to avoid the NaN issue
         # eye_mask = (q_idx == kv_idx)
-        causal_mask = ~(kv_idx < self.pad_ends[b, kv_idx]) & (q_idx >= kv_idx) ^ (q_idx == kv_idx)
+        causal_mask = ~(kv_idx < self.pad_ends[b, kv_idx]) & (q_idx >= kv_idx) | (q_idx == kv_idx)
         full_mask = (kv_idx < self.t2i_full_end[q_idx]) & (kv_idx >= self.t2i_full_begin[q_idx])
         # right_pad_mask = ~((kv_idx < self.right_pad_ends[q_idx]) & (kv_idx >= self.right_pad_begins[q_idx]))
         t2i_mask = (causal_mask | full_mask) #& right_pad_mask
 
         lm_mask = (q_idx >= kv_idx) #& right_pad_mask
-        mmu_mask = (q_idx >= kv_idx) | (kv_idx <= num_clip_vit_feat + 3) #& right_pad_mask
+        # mmu_mask = (q_idx >= kv_idx) | (kv_idx <= num_clip_vit_feat + 3) #& right_pad_mask
+        mmu_mask = (q_idx >= kv_idx) | (kv_idx < self.mmu_end)
 
         return (((b < self.batch_size_t2i) & t2i_mask)
                 ^ ((b >= self.batch_size_t2i) & (b < (self.batch_size_t2i + self.batch_size_lm)) & lm_mask)
                 ^ ((b >= (self.batch_size_t2i + self.batch_size_lm)) & mmu_mask))
 
     def create_block_mask(self, sequence, pad_begin_ends=[(0, 80), (0, 100), (0, 110), (0, 0)], type="t2i"):
+    # def create_block_mask(self, sequence, pad_begin_ends=[(0, 10), (0, 5), (0, 2), (0, 0)], type="t2i"):
         B, S = sequence.shape
         self.pad_begins = torch.arange(S, device='cuda').repeat(B, 1)
         self.pad_ends = torch.arange(S, device='cuda').repeat(B, 1)
@@ -126,9 +129,10 @@ class OmniAttentionMechanism(torch.nn.Module):
                 for q_idx in range(21):
                     for kv_idx in range(21):
                         attn_mask[b, h, q_idx, kv_idx] = self.t2i_mask(b, h, q_idx, kv_idx)
-        import ipdb
-        ipdb.set_trace()
-        print()
+        # import ipdb
+        # ipdb.set_trace()
+        # print()
+        return attn_mask
 
 def create_attention_mask_for_mmu_vit(
         sequence,
@@ -163,12 +167,18 @@ if __name__ == '__main__':
     q, k, v = [torch.randn(B, H, S, D, dtype=torch.float16) for _ in range(3)]
 
     OAM = OmniAttentionMechanism(4, 4, 4, S)
+
     sequence = torch.randn((B, S), device='cuda')
     block_mask = OAM.create_block_mask(sequence, type='t2i')
     print(block_mask)
 
     flex_attn = lambda: flex_attention(q, k, v, block_mask=block_mask)
     print("t2i flexattention: ", do_bench(flex_attn))
+
+    mask = OAM.test()
+    import ipdb
+
+    ipdb.set_trace()
 
     sequence = torch.randn((B, S), device='cuda')
     block_mask = OAM.create_block_mask(sequence, type='causal')
@@ -203,6 +213,8 @@ if __name__ == '__main__':
 
     flex_attn = lambda: flex_attention(q, k, v, block_mask=block_mask)
     print("mixed-t2i-lm-mmu flexattention: ", do_bench(flex_attn))
+
+
 
     import torch.nn.functional as F
     from torch.backends.cuda import sdp_kernel, SDPBackend
