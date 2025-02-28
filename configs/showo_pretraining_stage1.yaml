@@ -49,7 +49,7 @@ dataset:
         external_journeydb_caption_path: "/mnt/bn/vgfm2/test_mlx/xavier/code/3062/open_muse/train_journeydb_anno.json"
         external_laion12m_caption_path: "/mnt/bn/vgfm/laion5b/laion-aesthetics-12m-captions"
         external_cc12m_caption_path: '/mnt/bn/vgfm/cc12m/captions/'
-        validation_prompts_file: "validation_prompts/imagenet_validation_prompts.txt"
+        validation_prompts_file: "validation_prompts/imagenet_prompts.txt"
         shuffle_buffer_size: 1000
         num_workers: 32
         resolution: 256
@@ -93,7 +93,7 @@ training:
     min_masking_rate: 0.0
     label_smoothing: 0.0
     max_grad_norm: null
-    guidance_scale: 0.0
+    guidance_scale: 1.5
     generation_timesteps: 12
     t2i_coeff: 1.0
     lm_coeff: 0.1
