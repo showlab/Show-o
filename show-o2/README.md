@@ -14,7 +14,7 @@
 </div>
 
 ## News
-* **[2025-06-05]** We release the Show-o2 models **with 1.5B and 7B LLM parameters** for multimodal understanding and generation.
+* **[2025-06-12]** We release the Show-o2 models **with 1.5B and 7B LLM parameters** for multimodal understanding and generation.
 
 ## What is the new about Show-o2?
 Below is an overview of **Show-o2**. We perform the unified learning of multimodal understanding and generation on the text token and **3D Causal VAE space**, which is scalable for **text, image, and video modalities**. A dual-path of spatial (-temporal) fusion is proposed to accommodate the distinct feature dependency  of multimodal understanding and generation. We employ specific heads with **autoregressive modeling and flow matching** for the overall unified learning of **multimodal understanding, image/video and mixed-modality generation.**
