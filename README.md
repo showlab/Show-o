@@ -255,6 +255,13 @@ To cite the paper and model, please use the below:
   journal={arXiv preprint arXiv:2408.12528},
   year={2024}
 }
+
+@article{xie2025showo2,
+  title={Show-o2: Improved Native Unified Multimodal Models},
+  author={Xie, Jinheng and Yang, Zhenheng and Shou, Mike Zheng},
+  journal={arXiv preprint},
+  year={2025}
+}
 ```
 ### Acknowledgments
 This work is heavily based on [open-muse](https://github.com/huggingface/open-muse), [Phi-1.5](https://huggingface.co/microsoft/phi-1_5), [muse-maskgit-pytorch](https://github.com/lucidrains/muse-maskgit-pytorch), [maskgit](https://github.com/google-research/maskgit), [taming-transformers](https://github.com/CompVis/taming-transformers), [transformers](https://github.com/huggingface/transformers), [accelerate](https://github.com/huggingface/accelerate), [diffusers](https://github.com/huggingface/diffusers), and [webdataset](https://github.com/webdataset/webdataset). Thanks to all the authors for their great work.
