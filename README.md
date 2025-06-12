@@ -1,6 +1,6 @@
 <div align="center">
 <br>
-<img src="docs/showo_title.png" width="166">
+<img src="docs/showo_series.png" width="166">
 <h3>One Single Transformer to Unify Multimodal Understanding and Generation</h3>
 
 [Jinheng Xie](https://sierkinhane.github.io/)<sup>1&#42;</sup>&nbsp;
@@ -22,6 +22,41 @@ Zhijie Chen<sup>2</sup>&nbsp;
 </div>
 
 ## News
+* **[2025-06-05]** We release the **Show-o2** models **with 1.5B and 7B LLM parameters** for multimodal understanding and generation.
+We perform the unified learning of multimodal understanding and generation on the text token and **3D Causal VAE space**, which is scalable for **text, image, and video modalities**. A dual-path of spatial (-temporal) fusion is proposed to accommodate the distinct feature dependency  of multimodal understanding and generation. We employ specific heads with **autoregressive modeling and flow matching** for the overall unified learning of **multimodal understanding, image/video and mixed-modality generation.**
+<img src="docs/overview.png" width="1000">
+<br/>
+
+<img src="docs/demo3.png" width="1000">
+
+<table style="width:100%;">
+  <tr>
+    <td style="width:50%;">
+      <img src="docs/videos/waves.gif" style="width:100%;" alt="GIF 1" />
+    </td>
+    <td style="width:50%;">
+      <img src="docs/videos/sky.gif" style="width:100%;" alt="GIF 2" />
+    </td>
+  </tr>
+</table>
+
+<table style="width:100%;">
+  <tr>
+    <td style="width:25%;">
+      <img src="docs/videos/i2v_3.gif" style="width:100%;" alt="GIF 1" />
+    </td>
+    <td style="width:25%;">
+      <img src="docs/videos/i2v_4.gif" style="width:100%;" alt="GIF 2" />
+    </td>
+    <td style="width:25%;">
+      <img src="docs/videos/i2v_1.gif" style="width:100%;" alt="GIF 3" />
+    </td>
+    <td style="width:25%;">
+      <img src="docs/videos/i2v_2.gif" style="width:100%;" alt="GIF 4" />
+    </td>
+  </tr>
+</table>
+
 * **[2025-01-23]** **Show-o has been accepted to ICLR 2025.**
 * **[2024-10-15]** Update Arxiv paper to include new features and experimental results.
   * Support image generation in a resolution of 512x512.
