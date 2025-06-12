@@ -1,6 +1,6 @@
 <div align="center">
 <br>
-<img src="docs/showo_series.png" width="300">
+<img src="docs/showo_series.png" width="280">
 <h3>One Single Transformer to Unify Multimodal Understanding and Generation</h3>
 
 [Jinheng Xie](https://sierkinhane.github.io/)<sup>1&#42;</sup>&nbsp;
