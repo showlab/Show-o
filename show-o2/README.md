@@ -62,6 +62,7 @@ Below is an overview of **Show-o2**. We perform the unified learning of multimod
 ## Pre-trained Model Weigths
 The Show-o2 checkpoints can be found on Hugging Face:
 * [showlab/show-o2-1.5B](https://huggingface.co/showlab/show-o2-1.5B)
+* [showlab/show-o2-1.5B-HQ](https://huggingface.co/showlab/show-o2-1.5B-HQ)
 * [showlab/show-o2-7B](https://huggingface.co/showlab/show-o2-7B)
 
 ## Getting Started
@@ -90,6 +91,12 @@ python3 inference_mmu.py config=configs/showo2_7b_demo_432x432.yaml \
 
 Demo for **Text-to-Image Generation** and you can find the results on wandb.
 ```
+python3 inference_t2i.py config=configs/showo2_1.5b_demo_1024x1024.yaml \
+                         batch_size=4 guidance_scale=7.5 num_inference_steps=50;
+         
+python3 inference_t2i.py config=configs/showo2_1.5b_demo_512x512.yaml \
+                         batch_size=4 guidance_scale=7.5 num_inference_steps=50;
+                                      
 python3 inference_t2i.py config=configs/showo2_1.5b_demo_432x432.yaml \
                          batch_size=4 guidance_scale=7.5 num_inference_steps=50;
 

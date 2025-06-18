@@ -27,7 +27,7 @@ We perform the unified learning of multimodal understanding and generation on th
 <img src="docs/overview.png" width="1000">
 <br/>
 
-<img src="docs/demo3.png" width="1000">
+<img src="show-o2/docs/demo3.png" width="1000">
 
 <table style="width:100%;">
   <tr>
@@ -43,16 +43,16 @@ We perform the unified learning of multimodal understanding and generation on th
 <table style="width:100%;">
   <tr>
     <td style="width:25%;">
-      <img src="docs/videos/i2v_3.gif" style="width:100%;" alt="GIF 1" />
+      <img src="show-o2/docs/videos/i2v_3.gif" style="width:100%;" alt="GIF 1" />
     </td>
     <td style="width:25%;">
-      <img src="docs/videos/i2v_4.gif" style="width:100%;" alt="GIF 2" />
+      <img src="show-o2/docs/videos/i2v_4.gif" style="width:100%;" alt="GIF 2" />
     </td>
     <td style="width:25%;">
-      <img src="docs/videos/i2v_1.gif" style="width:100%;" alt="GIF 3" />
+      <img src="show-o2/docs/videos/i2v_1.gif" style="width:100%;" alt="GIF 3" />
     </td>
     <td style="width:25%;">
-      <img src="docs/videos/i2v_2.gif" style="width:100%;" alt="GIF 4" />
+      <img src="show-o2/docs/videos/i2v_2.gif" style="width:100%;" alt="GIF 4" />
     </td>
   </tr>
 </table>
