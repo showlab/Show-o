@@ -105,7 +105,59 @@ python3 inference_t2i.py config=configs/showo2_7b_demo_432x432.yaml \
 ```
 <img src="docs/demo2.png" width="1000">
 
+## Evaluation
+### GenEval
+```
+# Generate images
+bash evaluation/sample_geneval.sh
 
+# Prepare GenEval environment (we use PyTorch 1.10.0)
+git clone https://github.com/djghosh13/geneval.git
+cd geneval
+./evaluation/download_models.sh 'weights';
+git clone https://github.com/open-mmlab/mmdetection.git
+cd mmdetection; git checkout 2.x;
+pip3 install -v -e .;
+sudo pip3 install open-clip-torch;
+sudo pip3 install clip-benchmark;
+pip3 install -U openmim;
+mim install mmcv-full;
+pip install opencv-python-headless;
+
+# Evaluate
+python3 evaluation/evaluate_images.py \
+    "/path/to/your/generated/images" \
+    --outfile "results.jsonl" \
+    --model-path "./weights";
+python3 evaluation/summary_scores.py "results.jsonl";
+```
+### DPG-Bench
+```
+# Generate images
+bash evaluation/sample_dpg.sh
+
+# Prepare GenEval environment (we use PyTorch 2.5.1)
+pip3 install modelscope==1.22.2;
+pip3 install librosa==0.10.1
+pip3 install git+https://github.com/One-sixth/fairseq.git
+pip3 install opencv-python;
+pip3 install unicodedata2;
+pip3 install zhconv;
+pip3 install rapidfuzz;
+pip3 install numpy==1.23.5;
+pip3 install addict;
+pip3 install datasets==2.21.0;
+pip3 install simplejson;
+pip3 install sortedcontainers;
+
+cd evaluation;
+bash dist_eval.sh /path/to/your/generated/images image_resolution
+```
+
+### Multimodal Understanding Benchmarks
+```
+# We use lmms-eval
+```
 ### Citation
 To cite the paper and model, please use the below:
 ```
