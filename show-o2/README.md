@@ -163,7 +163,7 @@ To cite the paper and model, please use the below:
 @article{xie2025showo2,
   title={Show-o2: Improved Native Unified Multimodal Models},
   author={Xie, Jinheng and Yang, Zhenheng and Shou, Mike Zheng},
-  journal={arXiv preprint},
+  journal={arXiv preprint arXiv:2506.15564},
   year={2025}
 }
 ```
