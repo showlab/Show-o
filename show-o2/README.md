@@ -10,7 +10,7 @@
 
 <sup>1</sup> [Show Lab](https://sites.google.com/view/showlab/home?authuser=0), National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
-[![ArXiv](https://img.shields.io/badge/Report-PDF-<COLOR>.svg)](https://github.com/showlab/Show-o/blob/main/show-o2/Show_o2.pdf) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
+[![ArXiv](https://img.shields.io/badge/Arxiv-<2506.15564>-<COLOR>.svg)](https://arxiv.org/abs/2506.15564) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
 </div>
 
 ## News
@@ -54,10 +54,10 @@ Below is an overview of **Show-o2**. We perform the unified learning of multimod
 
 ## TODO
 - [X] Release the models for single image-text understanding and generation.
-- [ ] Release the evaluation code.
+- [X] Release the evaluation code.
 - [ ] Release the training code.
-- [ ] Release the models supporting image generation in a higher resolution (512x512 and 1024x1024) with better text rendering and mixed-modality generation.
-- [ ] Release the models supporting image-to-video and text-to-video generation.
+- [X] Release the models supporting image generation in a higher resolution (512x512 and 1024x1024) with better text rendering.
+- [ ] Release the models supporting mixed-modality generation, image-to-video and text-to-video generation.
 
 ## Pre-trained Model Weigths
 The Show-o2 checkpoints can be found on Hugging Face:
@@ -111,7 +111,7 @@ python3 inference_t2i.py config=configs/showo2_7b_demo_432x432.yaml \
 # Generate images
 bash evaluation/sample_geneval.sh
 
-# Prepare GenEval environment (we use PyTorch 1.10.0)
+# Create an independent environment for GenEval (we use PyTorch 1.10.0)
 git clone https://github.com/djghosh13/geneval.git
 cd geneval
 ./evaluation/download_models.sh 'weights';
@@ -122,7 +122,6 @@ sudo pip3 install open-clip-torch;
 sudo pip3 install clip-benchmark;
 pip3 install -U openmim;
 mim install mmcv-full;
-pip install opencv-python-headless;
 
 # Evaluate
 python3 evaluation/evaluate_images.py \
@@ -136,7 +135,7 @@ python3 evaluation/summary_scores.py "results.jsonl";
 # Generate images
 bash evaluation/sample_dpg.sh
 
-# Prepare GenEval environment (we use PyTorch 2.5.1)
+# Create an independent environment for DPG-Bench (we use PyTorch 2.5.1)
 pip3 install modelscope==1.22.2;
 pip3 install librosa==0.10.1
 pip3 install git+https://github.com/One-sixth/fairseq.git
