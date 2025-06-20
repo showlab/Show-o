@@ -10,11 +10,11 @@
 
 <sup>1</sup> [Show Lab](https://sites.google.com/view/showlab/home?authuser=0), National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
-[![ArXiv](https://img.shields.io/badge/Arxiv-<2506.15564>-<COLOR>.svg)](https://arxiv.org/abs/2506.15564) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
+[![ArXiv](https://img.shields.io/badge/Arxiv-<2506.15564>-<COLOR>.svg)](https://arxiv.org/abs/2506.15564) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg)
 </div>
 
 ## News
-* **[2025-06-12]** We release the Show-o2 models **with 1.5B and 7B LLM parameters** for multimodal understanding and generation.
+* **[2025-06-19]** We release the Show-o2 models **with 1.5B and 7B LLM parameters** for multimodal understanding and generation.
 
 ## What is the new about Show-o2?
 Below is an overview of **Show-o2**. We perform the unified learning of multimodal understanding and generation on the text token and **3D Causal VAE space**, which is scalable for **text, image, and video modalities**. A dual-path of spatial (-temporal) fusion is proposed to accommodate the distinct feature dependency  of multimodal understanding and generation. We employ specific heads with **autoregressive modeling and flow matching** for the overall unified learning of **multimodal understanding, image/video and mixed-modality generation.**
