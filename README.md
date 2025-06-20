@@ -38,7 +38,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 
 ## News
-* **[2025-06-20]** We are including more concurrent works into our comparative analysis tables. Feel free to reach out to us if we miss your works.
+* **[2025-06-20]** We are including more concurrent works in our comparative analysis tables. Feel free to reach out to us if we miss your works.
 
 <img src="show-o2/docs/comparative_analysis.png" width="1000">
 
