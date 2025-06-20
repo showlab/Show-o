@@ -149,6 +149,7 @@ pip3 install datasets==2.21.0;
 pip3 install simplejson;
 pip3 install sortedcontainers;
 
+# Evaluate
 cd evaluation;
 bash dist_eval.sh /path/to/your/generated/images image_resolution
 ```
