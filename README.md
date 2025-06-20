@@ -25,7 +25,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 <br>
 <img src="show-o2/docs/showo2.png" width="200">
 
-<h3>Improved Unified Multimodal Models</h3>
+<h3>Improved Native Unified Multimodal Models</h3>
 
 [Jinheng Xie](https://sierkinhane.github.io/)<sup>1</sup>&nbsp;
 [Zhenheng Yang](https://scholar.google.com/citations?user=Ds5wwRoAAAAJ&hl=en)<sup>2</sup>&nbsp;
