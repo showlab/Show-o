@@ -164,7 +164,8 @@ Download and install [lmms-eval](https://github.com/EvolvingLMMs-Lab/lmms-eval) 
 |   |   ├—— showo2_utils
 |   |   ├—— ...
 |   ├── __init__.py
-|   └── showo2_qwen2_5.py
+|   ├── showo2_qwen2_5.py
+|   ├── ...
 ```
 ``` 
 # Evaluate
