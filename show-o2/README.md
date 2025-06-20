@@ -136,7 +136,7 @@ python3 evaluation/summary_scores.py "results.jsonl";
 bash evaluation/sample_dpg.sh
 
 # Create an independent environment for DPG-Bench (we use PyTorch 2.5.1)
-pip3 install modelscope==1.22.2;
+pip3 install modelscope==1.22.2; (if encountering issues, try modelscope==1.20.0)
 pip3 install librosa==0.10.1
 pip3 install git+https://github.com/One-sixth/fairseq.git
 pip3 install opencv-python;
