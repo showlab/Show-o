@@ -23,7 +23,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 [//]: # ([![Hits]&#40;https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false&#41;]&#40;https://hits.seeyoufarm.com&#41;)
 <div align="center">
 <br>
-<img src="show-o2/docs/showo2.png" width="280">
+<img src="show-o2/docs/showo2.png" width="200">
 
 <h3>Improved Unified Multimodal Models</h3>
 
