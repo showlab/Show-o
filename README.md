@@ -1,6 +1,6 @@
 <div align="center">
 <br>
-<img src="docs/showo_series.png" width="280">
+<img src="docs/showo_title.png" width="200">
 <h3>One Single Transformer to Unify Multimodal Understanding and Generation</h3>
 
 [Jinheng Xie](https://sierkinhane.github.io/)<sup>1&#42;</sup>&nbsp;
@@ -17,12 +17,32 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 <sup>1</sup> [Show Lab](https://sites.google.com/view/showlab/home?authuser=0), National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
  
-[![ArXiv](https://img.shields.io/badge/ICLR-<OpenReview>-<COLOR>.svg)](https://openreview.net/pdf?id=o6Ynz6OIQ6) [![ArXiv](https://img.shields.io/badge/Showo-<2408.12528>-<COLOR>.svg)](https://arxiv.org/pdf/2408.12528) [![ArXiv](https://img.shields.io/badge/Showo2-<2506.15564>-<COLOR>.svg)](https://arxiv.org/abs/2506.15564) [![Demo](https://img.shields.io/badge/Demo-HuggingFace-<COLOR>.svg)](https://huggingface.co/spaces/showlab/Show-o) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/p6k7XupM) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg) [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
-  
+[![ArXiv](https://img.shields.io/badge/ICLR-<OpenReview>-<COLOR>.svg)](https://openreview.net/pdf?id=o6Ynz6OIQ6) [![ArXiv](https://img.shields.io/badge/Arxiv-<2408.12528>-<COLOR>.svg)](https://arxiv.org/pdf/2408.12528) [![Demo](https://img.shields.io/badge/Demo-HuggingFace-<COLOR>.svg)](https://huggingface.co/spaces/showlab/Show-o) [![slack badge](https://img.shields.io/badge/Discord-join-blueviolet?logo=discord&amp)](https://discord.gg/p6k7XupM) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg) 
 </div>
 
+[//]: # ([![Hits]&#40;https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fshowlab%2FShow-o&count_bg=%234DC621&title_bg=%23811AD2&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false&#41;]&#40;https://hits.seeyoufarm.com&#41;)
+<div align="center">
+<br>
+<img src="show-o2/docs/showo2.png" width="280">
+
+<h3>Improved Unified Multimodal Models</h3>
+
+[Jinheng Xie](https://sierkinhane.github.io/)<sup>1</sup>&nbsp;
+[Zhenheng Yang](https://scholar.google.com/citations?user=Ds5wwRoAAAAJ&hl=en)<sup>2</sup>&nbsp;
+[Mike Zheng Shou](https://sites.google.com/view/showlab)<sup>1</sup> 
+
+<sup>1</sup> [Show Lab](https://sites.google.com/view/showlab/home?authuser=0), National University of Singapore&nbsp; <sup>2</sup> Bytedance&nbsp;
+ 
+[![ArXiv](https://img.shields.io/badge/Arxiv-<2506.15564>-<COLOR>.svg)](https://arxiv.org/abs/2506.15564) [![WeChat badge](https://img.shields.io/badge/微信-加入-green?logo=wechat&amp)](https://github.com/showlab/Show-o/blob/main/docs/wechat_qa_3.jpg) 
+</div>
+
+
 ## News
-* **[2025-06-12]** We release the [**Show-o2**](https://github.com/showlab/Show-o/tree/main/show-o2) models **with 1.5B and 7B LLM parameters** for multimodal understanding and generation.
+* **[2025-06-20]** We are including more concurrent works into our Table 11's comparative analysis. Feel free to reach out to us if we miss your works.
+
+<img src="show-o2/docs/comparative_analysis.png" width="1000">
+
+* **[2025-06-19]** We release the [**Show-o2**](https://github.com/showlab/Show-o/tree/main/show-o2) models **with 1.5B and 7B LLM parameters** for multimodal understanding and generation.
 We perform the unified learning of multimodal understanding and generation on the text token and **3D Causal VAE space**, which is scalable for **text, image, and video modalities**. A dual-path of spatial (-temporal) fusion is proposed to accommodate the distinct feature dependency  of multimodal understanding and generation. We employ specific heads with **autoregressive modeling and flow matching** for the overall unified learning of **multimodal understanding, image/video and mixed-modality generation.**
 <img src="show-o2/docs/overview.png" width="1000">
 <br/>
