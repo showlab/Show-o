@@ -154,9 +154,33 @@ bash dist_eval.sh /path/to/your/generated/images image_resolution
 ```
 
 ### Multimodal Understanding Benchmarks
+
+Download and install [lmms-eval](https://github.com/EvolvingLMMs-Lab/lmms-eval) following their instructions.
+
+[Download, add, replace some codes of lmms-eval](https://drive.google.com/file/d/1R9b5S1A0yYrcH7P-iiZc9XqG3B2SFKKn/view?usp=sharing) and structure them as follows:
 ```
-# We use lmms-eval
+├── lmms-eval/ 
+|   ├── models
+|   |   ├—— showo2_utils
+|   |   ├—— ...
+|   ├── __init__.py
+|   └── showo2_qwen2_5.py
 ```
+``` 
+# Evaluate
+python3 -m accelerate.commands.launch --main_process_port 24348 \
+    --num_processes=8 \
+    -m lmms_eval \
+    --model showo2_qwen2_5 \
+    --model_args "config_file=/path/to/configs/showo2_7b_demo_432x432.yaml"  \
+    --tasks mme,gqa,seedbench,mmbench,mmmu_val,mmstar,ai2d \
+    --batch_size 1 \
+    --log_samples \
+    --log_samples_suffix showo2_qwen2_5 \
+    --output_path ./logs/
+```
+
+
 ### Citation
 To cite the paper and model, please use the below:
 ```
