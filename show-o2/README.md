@@ -192,6 +192,13 @@ To cite the paper and model, please use the below:
   journal={arXiv preprint arXiv:2506.15564},
   year={2025}
 }
+
+@article{xie2024showo,
+  title={Show-o: One Single Transformer to Unify Multimodal Understanding and Generation},
+  author={Xie, Jinheng and Mao, Weijia and Bai, Zechen and Zhang, David Junhao and Wang, Weihao and Lin, Kevin Qinghong and Gu, Yuchao and Chen, Zhijie and Yang, Zhenheng and Shou, Mike Zheng},
+  journal={arXiv preprint arXiv:2408.12528},
+  year={2024}
+}
 ```
 ### Acknowledgments
 This work is heavily based on [Show-o](https://github.com/showlab/show-o).
