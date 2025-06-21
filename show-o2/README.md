@@ -63,7 +63,7 @@ Below is an overview of **Show-o2**. We perform the unified learning of multimod
 ## Pre-trained Model Weigths
 The Show-o2 checkpoints can be found on Hugging Face:
 * [showlab/show-o2-1.5B](https://huggingface.co/showlab/show-o2-1.5B)
-* [showlab/show-o2-1.5B-HQ](https://huggingface.co/showlab/show-o2-1.5B-HQ)
+* [showlab/show-o2-1.5B-HQ](https://huggingface.co/showlab/show-o2-1.5B-HQ) (text-to-image generation in resolutions of 512x512 and 1024x1024 with better text rendering)
 * [showlab/show-o2-7B](https://huggingface.co/showlab/show-o2-7B)
 
 ## Getting Started
