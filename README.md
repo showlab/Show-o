@@ -38,10 +38,9 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 
 ## News
-* **[2025-06-20]** We are including more concurrent works in our comparative analysis tables. Feel free to reach out to us if we miss your works.
+* **[2025-06-20]** We are including more concurrent works in our [comparative analysis tables](https://github.com/showlab/Show-o/blob/main/show-o2/docs/comparative_analysis.png). Feel free to reach out to us if we miss your works.
 
-<img src="show-o2/docs/comparative_analysis.png" width="1000">
-
+[//]: # (<img src="show-o2/docs/comparative_analysis.png" width="1000">)
 * **[2025-06-19]** We release the [**Show-o2**](https://github.com/showlab/Show-o/tree/main/show-o2) models **with 1.5B and 7B LLM parameters** for multimodal understanding and generation.
 We perform the unified learning of multimodal understanding and generation on the text token and **3D Causal VAE space**, which is scalable for **text, image, and video modalities**. A dual-path of spatial (-temporal) fusion is proposed to accommodate the distinct feature dependency  of multimodal understanding and generation. We employ specific heads with **autoregressive modeling and flow matching** for the overall unified learning of **multimodal understanding, image/video and mixed-modality generation.**
 <img src="show-o2/docs/overview.png" width="1000">
