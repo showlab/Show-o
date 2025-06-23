@@ -181,7 +181,7 @@ python3 -m accelerate.commands.launch --main_process_port 24348 \
     --log_samples \
     --log_samples_suffix showo2_qwen2_5 \
     --output_path ./logs/
-```
+``` 
 
 
 ### Citation

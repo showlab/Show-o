@@ -262,7 +262,7 @@ Welcome to discuss with us and continuously improve the user experience of Show-
 Reach us with this [Discord channel](https://discord.gg/p6k7XupM) or the WeChat QR code below!
 <p align="center">
 <img src="docs/wechat_qa_3.jpg" width="256">
-</p>
+</p> 
 
 
 ### Citation
