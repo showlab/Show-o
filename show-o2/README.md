@@ -14,7 +14,7 @@
 </div>
 
 ## News
-* **[2025-06-25]** We thank team [OneIG-Bench](https://github.com/OneIG-Bench/OneIG-Benchmark) for evaluating Show-o2 models on their new benchmark, in which our models have achieved leading performance in terms of Alignment and Reasoning metrics.
+* **[2025-06-25]** We thank team [OneIG-Bench](https://github.com/OneIG-Bench/OneIG-Benchmark) for evaluating Show-o2 models on their new benchmark, in which our models have achieved leading performance in terms of Alignment and Reasoning metrics. The leadboard is maitained [here](https://oneig-bench.github.io/).
 
 <img src="docs/OnelG-Bench.jpg" width="1000">
 
