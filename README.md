@@ -38,6 +38,10 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 
 ## News
+* **[2025-06-25]** We thank team [OneIG-Bench](https://github.com/OneIG-Bench/OneIG-Benchmark) evaluate Show-o2 models on their new benchmark, in which our models achieve leading performance in terms of Alignment and Reasoning metrics.
+
+<img src="show-o2/docs/OnelG-Bench.jpg" width="800">
+
 * **[2025-06-20]** We are including more concurrent works in our [comparative analysis tables](https://github.com/showlab/Show-o/blob/main/show-o2/docs/comparative_analysis.png). Feel free to reach out to us if we miss your works.
 
 [//]: # (<img src="show-o2/docs/comparative_analysis.png" width="1000">)

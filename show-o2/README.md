@@ -14,6 +14,12 @@
 </div>
 
 ## News
+* **[2025-06-25]** We thank team [OneIG-Bench](https://github.com/OneIG-Bench/OneIG-Benchmark) evaluate Show-o2 models on their new benchmark, in which our models achieve leading performance in terms of Alignment and Reasoning metrics.
+
+<img src="docs/OnelG-Bench.jpg" width="800">
+
+* **[2025-06-20]** We are including more concurrent works in our [comparative analysis tables](https://github.com/showlab/Show-o/blob/main/show-o2/docs/comparative_analysis.png). Feel free to reach out to us if we miss your works.
+
 * **[2025-06-19]** We release the Show-o2 models **with 1.5B and 7B LLM parameters** for multimodal understanding and generation.
 
 ## What is the new about Show-o2?
