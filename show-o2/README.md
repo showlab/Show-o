@@ -189,6 +189,40 @@ python3 -m accelerate.commands.launch --main_process_port 24348 \
     --output_path ./logs/
 ``` 
 
+### Training
+Below is an example to train Show-o2 with 1.5B LLM parameters on one node with 8 GPUs. Please refer to `accelerate` for multi-node distributed training.
+
+(As the code is manually cleaned based on our original codes without other inspection. Feel free to contact me if you encounter any issues)
+#### Data Preparation
+We did use our `internal packages` to load large-scale data shards. For convenience, we here simply implement a dataset classes (`./datasets`) based on torch `Dataset`. We recommend other packages like `webdataset` when loading large-scale datasets.
+
+#### Stage-1
+Prepare a `.jsonl` annotation file for your image-text pairs in the format as follows and change the `path` in `./configs`:
+```
+{
+    "image_path": "path/to/your/image1",
+    "prompt": "a description of the image1"
+}
+{
+    "image_path": "path/to/your/image2",
+    "prompt": "a description of the image2"
+}
+```
+
+```
+bash train_showo2_1.5b_stage1.sh
+```
+
+
+#### Stage-2
+Follow [LLaVA-OneVision](https://github.com/LLaVA-VL/LLaVA-NeXT/tree/main/scripts/train#about-the-llava-onevision-data) and [DenseFusion](https://github.com/baaivision/DenseFusion) to download the required images. Download the annotation files [here]() and change the `image dir` and `annotation path` in `./configs`.
+``` 
+bash train_showo2_1.5b_stage2.sh
+```
+
+#### Add additional high-quality image generation, interleaved image-text, or video data
+In our experiments, we add additional these kinds of additional data in stage-1 to enhance the base show-o2 models with more comprehensive capabilities. We will provide the scripts and code soon.
+
 
 ### Citation
 To cite the paper and model, please use the below:

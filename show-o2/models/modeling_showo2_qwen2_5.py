@@ -18,7 +18,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 from transformers import AutoConfig
-
+from torch.nn.attention.flex_attention import BlockMask
 from .misc import velocity_prediction, next_token_prediction, interpolate_pos_encoding
 from .modeling_siglip import SiglipModel
 from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
@@ -157,7 +157,7 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             imgs = x.reshape(shape=(x.shape[0], T, h * p * w * p, c))
         return imgs
 
-    def forward_und_siglip_only(
+    def forward_und_only(
             self,
             text_tokens=None,
             image_latents=None,
@@ -196,20 +196,40 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             image_embeds_gen = image_embeds_gen.reshape(b, T, -1, self.config.hidden_size)
             image_embeds_gen = rearrange(image_embeds_gen, 'b t l d -> b (t l) d')
 
-        image_embeds_und = image_embeds_und + self.position_embedding(self.image_position_ids)
-        image_embeds_und = self.und_trans(image_embeds_und)['last_hidden_state']
+        # go through semantic layers
+        p = self.config.patch_size
+        h_, w_ = h // p, w // p
+        # specific for fixed resolution of 432x432
+        if self.position_embedding.weight.shape[-1] == self.image_position_ids.shape[-1]:
+            image_embeds_und = image_embeds_und + self.position_embedding(self.image_position_ids)
+            image_embeds_und = self.und_trans(image_embeds_und)['last_hidden_state']
+        # interpolate position embeddings for dynamic resolution
+        else:
+            image_embeds_und = image_embeds_und + interpolate_pos_encoding(
+                self.config.clip_latent_dim,
+                self.position_embedding,
+                h_,
+                w_,
+                1,
+            )
+            image_embeds_und = self.und_trans(image_embeds_und)['last_hidden_state']
         if T != 0:
             image_embeds_und = image_embeds_und.reshape(b, T, image_embeds_und.shape[1], -1)
             image_embeds_und = rearrange(image_embeds_und, 'b t l d -> b (t l) d')
+
+        # spatial (-temporal) fusion
         image_embeds = self.fusion_proj(torch.cat([image_embeds_und, image_embeds_gen], dim=-1))
 
-        if self.config.add_time_embeds:
-            time_embeds = self.time_embed(t.squeeze(), dtype)
+        time_embeds = self.time_embed(t, dtype)
+        if hasattr(self, 'time_embed_proj'):
+            time_embeds_proj = self.time_embed_proj(time_embeds)
+        else:
+            time_embeds_proj = time_embeds
 
         for i, modality_batch in enumerate(modality_positions):
             for j, (offset, length) in enumerate(modality_batch):
                 if self.config.add_time_embeds:
-                    input_embeds[i, offset] = time_embeds[i * modality_positions.size(1) + j]
+                    input_embeds[i, offset] = time_embeds_proj[i * modality_positions.size(1) + j]
                     # length - 1 because we add 1 to the num_image_tokens when add_time_embeds=True
                     # it's necessary to include :length-1, as sometimes we may skip some idle images when length=0
                     input_embeds[i, offset + 1:offset + 1 + length - 1] = \
@@ -617,6 +637,102 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             # Check if the `eos_token_id` is generated
             if next_token == tokenizer.eos_token_id or next_token == boi_token:  # EOS token ID
                 break
+
+            # Decode the generated tokens
+        generated_text = tokenizer.decode(output_tokens, skip_special_tokens=False)
+
+        return generated_text
+
+    @torch.no_grad()
+    def mm_generate(
+            self,
+            input_ids=None,
+            image_latents=None,
+            t=None,
+            modality_positions=None,
+            attention_mask=None,
+            tokenizer=None,
+            max_new_tokens=100,
+            boi_token=None,
+            temperature=1.0,
+            top_k=None,
+            top_p=None,
+            device=None,
+    ):
+        """
+        Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
+        the sequence max_new_tokens times, feeding the predictions back into the model each time.
+        Most likely you'll want to make sure to be in model.eval() mode of operation for this.
+        """
+        generated_tokens = input_ids
+        output_tokens = []
+        if attention_mask is not None and type(attention_mask) == BlockMask:
+            raise NotImplementedError
+
+        for _ in range(max_new_tokens):
+
+            # Generate the next token
+            logits = self.forward_und_only(
+                text_tokens=torch.tensor([generated_tokens]).to(device),
+                image_latents=image_latents,
+                t=t,
+                attention_mask=attention_mask,
+                modality_positions=modality_positions,
+            )
+
+            next_token_logits = logits[:, -1, :]  # Get logits for the last token
+
+            # Apply temperature scaling
+            next_token_logits = next_token_logits / temperature
+
+            # Apply top-k sampling
+            if top_k is not None:
+                top_k_values, _ = torch.topk(next_token_logits, top_k)
+                min_top_k_value = top_k_values[:, -1].unsqueeze(-1)
+                next_token_logits = torch.where(
+                    next_token_logits < min_top_k_value,
+                    torch.full_like(next_token_logits, float("-inf")),
+                    next_token_logits,
+                )
+
+            # Apply top-p (nucleus) sampling
+            if top_p is not None:
+                sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
+                cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+                sorted_indices_to_remove = cumulative_probs > top_p
+                sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
+                sorted_indices_to_remove[:, 0] = 0
+                next_token_logits[sorted_indices[sorted_indices_to_remove]] = float("-inf")
+
+            # Convert logits to probabilities
+            probs = F.softmax(next_token_logits, dim=-1)
+
+            # Sample the next token
+            next_token = torch.multinomial(probs, num_samples=1).item()
+
+            # Append the next token to the sequence
+            generated_tokens.append(next_token)
+            output_tokens.append(next_token)
+
+            # Check if the `eos_token_id` is generated
+            if next_token == tokenizer.eos_token_id or next_token == boi_token:  # EOS token ID
+                break
+
+            L = attention_mask.shape[-1]
+            attention_mask = attention_mask.squeeze()
+            attention_mask_a = torch.hstack(
+                [
+                    attention_mask,  # L, L
+                    torch.zeros((L, 1)).to(device) + torch.finfo(next_token_logits.dtype).min,
+                ]
+            )
+            attention_mask_b = torch.vstack(
+                [
+                    attention_mask_a,  # L, L + 1
+                    torch.hstack([attention_mask[-1, :], torch.tensor([0]).to(device)]).unsqueeze(0),
+                ]
+            )
+            attention_mask = attention_mask_b.to(image_latents.dtype)
 
             # Decode the generated tokens
         generated_text = tokenizer.decode(output_tokens, skip_special_tokens=False)
