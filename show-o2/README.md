@@ -215,7 +215,7 @@ bash train_showo2_1.5b_stage1.sh
 
 
 #### Stage-2
-Follow [LLaVA-OneVision](https://github.com/LLaVA-VL/LLaVA-NeXT/tree/main/scripts/train#about-the-llava-onevision-data) and [DenseFusion](https://github.com/baaivision/DenseFusion) to download the required images. Download the annotation files [here]() and change the `image dir` and `annotation path` in `./configs`.
+Follow [LLaVA-OneVision](https://github.com/LLaVA-VL/LLaVA-NeXT/tree/main/scripts/train#about-the-llava-onevision-data) and [DenseFusion](https://github.com/baaivision/DenseFusion) to download the required images. Download the annotation files [here](https://huggingface.co/datasets/Sierkinhane/show-o2-data-annotations) and change the `image dir` and `annotation path` in `./configs`.
 ``` 
 bash train_showo2_1.5b_stage2.sh
 ```
