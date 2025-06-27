@@ -38,6 +38,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 
 ## News
+* **[2025-06-27]** We release the training code for multimodal understanding and generation.
 * **[2025-06-25]** We thank team [OneIG-Bench](https://github.com/OneIG-Bench/OneIG-Benchmark) for evaluating Show-o2 models on their new benchmark, in which our models have achieved leading performance in terms of Alignment and Reasoning metrics. The leaderboard is maintained [here](https://oneig-bench.github.io/).
 
 <img src="show-o2/docs/OnelG-Bench.jpg" width="1000">

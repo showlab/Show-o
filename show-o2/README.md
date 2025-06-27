@@ -14,6 +14,7 @@
 </div>
 
 ## News
+* **[2025-06-27]** We release the training code for multimodal understanding and generation.
 * **[2025-06-25]** We thank team [OneIG-Bench](https://github.com/OneIG-Bench/OneIG-Benchmark) for evaluating Show-o2 models on their new benchmark, in which our models have achieved leading performance in terms of Alignment and Reasoning metrics. The leaderboard is maintained [here](https://oneig-bench.github.io/).
 
 <img src="docs/OnelG-Bench.jpg" width="1000">
@@ -61,7 +62,7 @@ Below is an overview of **Show-o2**. We perform the unified learning of multimod
 ## TODO
 - [X] Release the models for single image-text understanding and generation.
 - [X] Release the evaluation code.
-- [ ] Release the training code.
+- [X] Release the training code.
 - [X] Release the models supporting image generation in a higher resolution (512x512 and 1024x1024) with better text rendering.
 - [ ] Release the models supporting mixed-modality generation.
 - [ ] Release the models supporting image-to-video and text-to-video generation.
