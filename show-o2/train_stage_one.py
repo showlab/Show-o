@@ -166,6 +166,9 @@ def main():
     else:
         model = Showo2Qwen2_5(**config.model.showo).to(accelerator.device)
 
+    # load pre-distilled semantic layers
+    model.load_state_dict(torch.load("pre-distilled_semantic_layers.pt", map_location="cpu"), strict=False)
+
     # Choose layers to freeze
     _freeze_params(model, config.model.showo.frozen_params)
 
