@@ -20,7 +20,7 @@ experiment:
 model:
     vae_model:
         type: "wan21"
-        pretrained_model_path: "/mnt/bn/vgfm2/test_mlx/xavier/code/0923/show-o-next-v5/Wan2.1_VAE.pth"
+        pretrained_model_path: "Wan2.1_VAE.pth"
 
     showo:
         model_name: "Showo2"
