@@ -55,8 +55,8 @@ dataset:
     accumulation: 1
     mixed_loader_mode: "sequential_max_size_cycle"
     params:
-        train_mixed_modal_shards_path_or_url: "/mnt/bn/vgfm2/test_mlx/xavier/data/visual_story_telling/train_images/images/train"
-        annotation_path: "/mnt/bn/vgfm2/test_mlx/xavier/data/visual_story_telling/vst_train_annotations.json"
+        train_mixed_modal_shards_path_or_url: "/path/to/your/images/train"
+        annotation_path: "/path/to/your/vst_train_annotations.json"
         is_clip_encoder: False
         default_system_prompt: ""
         add_caption_prompt: True
