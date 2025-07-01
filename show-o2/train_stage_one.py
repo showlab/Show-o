@@ -193,6 +193,7 @@ def main():
     if optimizer_type == "adamw":
         optimizer = AdamW(
             model.parameters(),
+            lr=optimizer_config.learning_rate,
             betas=(optimizer_config.beta1, optimizer_config.beta2),
             weight_decay=optimizer_config.weight_decay,
             eps=optimizer_config.epsilon,
@@ -525,7 +526,7 @@ def main():
                         logs = {
                             "step_loss_ntp": avg_loss_ntp.item(),
                             "step_loss_flow": avg_loss_flow.item(),
-                            "lr_proj": lr[0],
+                            "lr": lr[0],
                             "samples/sec/gpu": samples_per_second_per_gpu,
                             "data_time": data_time_m.val,
                             "batch_time": batch_time_m.val,
@@ -538,7 +539,7 @@ def main():
                             f"Loss_FLOW: {avg_loss_flow.item():0.4f} "
                             f"Data (t): {data_time_m.val:0.4f}, {samples_per_second_per_gpu:0.2f}/s/gpu "
                             f"Batch (t): {batch_time_m.val:0.4f} "
-                            f"LR_proj: {lr[0]:0.6f}"
+                            f"LR: {lr[0]:0.6f}"
                         )
                     # resetting batch / data time meters per log window
                     batch_time_m.reset()
