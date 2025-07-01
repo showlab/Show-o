@@ -39,7 +39,7 @@ class VISTDataset(Dataset):
             latent_width: int = 24,
             num_image_tokens: int = 576,
             cond_dropout_prob: float = 0.1,
-            max_num_pairs: int = 5,
+            max_num_images: int = 4,
             loader: Callable[[str], Any] = default_loader,
             showo_token_ids: Optional[Dict[str, int]] = None,
             system: Tuple[str, str, str] = ("", "", ""),
@@ -56,7 +56,7 @@ class VISTDataset(Dataset):
             latent_width: Width of latent representation.
             num_image_tokens: Number of tokens representing an image.
             cond_dropout_prob: Probability of conditioning dropout.
-            max_num_pairs: Maximum number of image-text pairs per sample.
+            max_num_images: Maximum number of images per sample.
             loader: Function to load an image given its path.
             anno_path: Path to the annotation JSON file.
             showo_token_ids: Dictionary of special token IDs.
@@ -78,7 +78,7 @@ class VISTDataset(Dataset):
         self.cond_dropout_prob = cond_dropout_prob
         self.data_type = "interleaved_data"
         self.transform = image_transform
-        self.max_num_pairs = max_num_pairs
+        self.max_num_images = max_num_images
 
         self.root = root
         self.anno_path = anno_path
@@ -101,20 +101,20 @@ class VISTDataset(Dataset):
             self.max_text_len = (
                                         max_seq_len
                                         - len(self.flag_tokens)
-                                        - (num_image_tokens + 2) * max_num_pairs
+                                        - (num_image_tokens + 2) * max_num_images
                                         - 2
-                                ) // max_num_pairs
+                                ) // max_num_images
         else:
             # 4 for bos, eos, boi, and eoi tokens
             # 1 for eos after text token (a bit tricky)
             # see more details in def format_sequence_gen_qwen2_5(...)
             self.max_text_len = (
                                         max_seq_len
-                                        - (num_image_tokens + 2) * max_num_pairs
+                                        - (num_image_tokens + 2) * max_num_images
                                         - 2
                                         - self.system_token_len
                                         - 1
-                                ) // max_num_pairs
+                                ) // max_num_images
 
         self.min_res = min_res if min_res is not None else (256, 256)
 
@@ -129,13 +129,13 @@ class VISTDataset(Dataset):
         Returns:
             Tuple of image list, tokenized text list, and raw texts.
         """
-        if len(anno['images']) > self.max_num_pairs:
-            start_fid = random.randint(0, len(anno['images']) - self.max_num_pairs - 1)
+        if len(anno['images']) > self.max_num_images:
+            start_fid = random.randint(0, len(anno['images']) - self.max_num_images - 1)
         else:
             start_fid = 0
 
-        image_paths = anno['images'][start_fid: start_fid + self.max_num_pairs]
-        texts = anno['captions'][start_fid: start_fid + self.max_num_pairs]
+        image_paths = anno['images'][start_fid: start_fid + self.max_num_images]
+        texts = anno['captions'][start_fid: start_fid + self.max_num_images]
 
         image_list: List[Optional[torch.Tensor]] = []
         text_token_list: List[Optional[List[int]]] = []
@@ -159,11 +159,11 @@ class VISTDataset(Dataset):
         # Add flag token to the first text token list
         text_token_list[0] = self.flag_tokens + text_token_list[0]
 
-        # Pad lists if fewer than max_num_pairs
-        if len(image_list) != self.max_num_pairs:
-            image_list += [None] * (self.max_num_pairs - len(image_list))
-            text_token_list += [None] * (self.max_num_pairs - len(text_token_list))
-            texts += [''] * (self.max_num_pairs - len(texts))
+        # Pad lists if fewer than max_num_images
+        if len(image_list) != self.max_num_images:
+            image_list += [None] * (self.max_num_images - len(image_list))
+            text_token_list += [None] * (self.max_num_images - len(text_token_list))
+            texts += [''] * (self.max_num_images - len(texts))
 
         return image_list, text_token_list, texts
 
@@ -194,7 +194,7 @@ class VISTDataset(Dataset):
                 self.img_pad_id,
                 self.num_image_tokens,
                 self.max_seq_len,
-                self.max_num_pairs,
+                self.max_num_images,
             )
 
             # Ignore flag tokens in the label (first one is bos token)
@@ -258,7 +258,7 @@ if __name__ == '__main__':
         num_image_tokens=1024,
         latent_height=32,
         latent_width=32,
-        max_num_pairs=4
+        max_num_images=4
     )
     train_dataloader_t2i = DataLoader(dataset, batch_size=12, collate_fn=dataset.collate_fn,
                                       shuffle=False, num_workers=12)

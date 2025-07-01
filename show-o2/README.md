@@ -224,6 +224,34 @@ bash train_showo2_1.5b_stage2.sh
 ### Add additional high-quality image generation, interleaved image-text, or video data
 In our experiments, we add additional these kinds of additional data in stage-1 to enhance the base show-o2 models with more comprehensive capabilities. We will provide the scripts and code soon.
 
+### Downstream fine-tuning
+More comprehensive training codes on interleaved image-text pairs will be provided soon. Here, we simply take the mixed-modality generation on [visual storytelling](https://visionandlanguage.net/VIST/index.html) dataset as an example. 
+
+Following the instructions to download the dataset visual storytelling data [here](https://visionandlanguage.net/VIST/dataset.html) and our processed annotation [here](https://huggingface.co/datasets/Sierkinhane/show-o2-data-annotations/blob/main/vist_train_annotations.json).
+
+We use this config `conigs/showo2_1.5b_downstream_mixed_modality_simple.yaml` and set `frozen_params` as follows for the warm-up training:
+``` 
+frozen_params: ['image_embedder_und', 'und_trans', 'showo', 'position_embedding']
+```
+**Training script**:
+``` 
+accelerate launch --config_file ../accelerate_configs/8_gpus_deepspeed_zero2.yaml --main_process_port=9999 train_mixed_modality_simple.py config=configs/showo2_1.5b_downstream_mixed_modality_simple.yaml
+```
+As we do not train the base LLM parameters, the model still cannot generate text in the style of the visual storytelling data. Next, we can set all the model parameters trainable and modified the `max_train_steps` as follows and continue the training:
+``` 
+frozen_params: null
+max_train_steps: 50000  # adjust it according to the performance
+```
+**Training script**:
+``` 
+accelerate launch --config_file ../accelerate_configs/8_gpus_deepspeed_zero2.yaml --main_process_port=9999 train_mixed_modality_simple.py config=configs/showo2_1.5b_downstream_mixed_modality_simple.yaml
+```
+**Mixed-modality Inference**. The model will automatically generate texts and images.
+``` 
+CUDA_VISIBLE_DEVICES=0 python3 inference_mixed_modality.py config=configs/showo2_2b_demo_432x432_mixed_modal.yaml \
+                         model_path=./show-o2-qwen2-5-1.5b-downstream-mixed-modality-432x432/checkpoint-50000/unwrapped_model/pytorch_model.bin \
+                         batch_size=4 guidance_scale=5.0 num_inference_steps=50;
+```
 
 ### Citation
 To cite the paper and model, please use the below:
