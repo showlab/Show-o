@@ -164,7 +164,7 @@ def main():
     config.model.showo.llm_vocab_size = len(text_tokenizer)
 
     if config.model.showo.load_from_showo:
-        model = Showo2Qwen2_5.from_pretrained(config.model.showo.pretrained_model_path).to(accelerator.device)
+        model = Showo2Qwen2_5.from_pretrained(config.model.showo.pretrained_model_path, use_safetensors=False).to(accelerator.device)
     else:
         model = Showo2Qwen2_5(**config.model.showo).to(accelerator.device)
 
