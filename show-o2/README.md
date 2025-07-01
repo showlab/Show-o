@@ -237,7 +237,7 @@ frozen_params: ['image_embedder_und', 'und_trans', 'showo', 'position_embedding'
 ``` 
 accelerate launch --config_file ../accelerate_configs/8_gpus_deepspeed_zero2.yaml --main_process_port=9999 train_mixed_modality_simple.py config=configs/showo2_1.5b_downstream_mixed_modality_simple.yaml
 ```
-As we do not train the base LLM parameters, the model still cannot generate text in the style of the visual storytelling data. Next, we can set all the model parameters trainable and modified the `max_train_steps` as follows and continue the training:
+As the above config did not train the base LLM parameters, the model still cannot generate text in the style of the visual storytelling data. Next, we can set all the model parameters trainable and modified the `max_train_steps` as follows and continue the training:
 ``` 
 frozen_params: null
 max_train_steps: 50000  # adjust it according to the performance
