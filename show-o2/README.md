@@ -246,7 +246,7 @@ max_train_steps: 50000  # adjust it according to the performance
 ``` 
 accelerate launch --config_file ../accelerate_configs/8_gpus_deepspeed_zero2.yaml --main_process_port=9999 train_mixed_modality_simple.py config=configs/showo2_1.5b_downstream_mixed_modality_simple.yaml
 ```
-**Mixed-modality Inference**. The model will automatically generate texts and images.
+**Mixed-modality Inference**. The model will automatically generate interleaved texts and images.
 ``` 
 CUDA_VISIBLE_DEVICES=0 python3 inference_mixed_modality.py config=configs/showo2_1.5b_demo_432x432_mixed_modal.yaml \
                          model_path=./show-o2-qwen2-5-1.5b-downstream-mixed-modality-432x432/checkpoint-50000/unwrapped_model/pytorch_model.bin \
