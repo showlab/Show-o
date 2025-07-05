@@ -24,7 +24,6 @@ model:
 
     showo:
         model_name: "Showo2"
-        vision_encoder: "clip"
         load_from_showo: False
         pretrained_model_path: ""
         llm_model_path: "Qwen/Qwen2.5-1.5B-Instruct"
