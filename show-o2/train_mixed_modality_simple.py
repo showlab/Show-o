@@ -578,7 +578,7 @@ def generate_images(
 
     num_image_tokens, num_video_tokens, max_seq_len, max_text_len, image_latent_dim, patch_size, latent_width, \
     latent_height, pad_id, bos_id, eos_id, boi_id, eoi_id, bov_id, eov_id, image_pad_id, video_pad_id, guidance_scale \
-        = get_hyper_params(config, text_tokenizer, showo_token_ids, is_hq=True)
+        = get_hyper_params(config, text_tokenizer, showo_token_ids)
 
     batch_text_tokens, batch_text_tokens_null, batch_modality_positions, batch_modality_positions_null = \
         prepare_gen_input(
