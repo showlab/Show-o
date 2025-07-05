@@ -3,9 +3,9 @@ wandb:
   resume: 'auto'
 
 experiment:
-    project: "show-o2-2b-stage-1-release"
-    name: "show-o2-qwen2-5-2b-stage-1-a"
-    output_dir: "show-o2-qwen2-5-2b-stage-1-a"
+    project: "show-o2-1.5b-stage-1-release"
+    name: "show-o2-1.5b-stage-1-a"
+    output_dir: "show-o2-1.5b-stage-1-a"
     output_dataloader_state_dir: "64gpus_dataloader_states"
     max_train_examples_t2i: 66000000
     max_train_examples_mmu: 66000000
@@ -81,7 +81,7 @@ dataset:
         hq_latent_width: ${model.showo.hq_image_latent_width}
         mixed_modal_latent_height: ${model.showo.hq_image_latent_height}
         mixed_modal_latent_width: ${model.showo.hq_image_latent_width}
-        min_res: [512, 512]
+        min_res: [256, 256] # minimum image resolution
         random_und_or_gen: 0.0
 
 optimizer:
