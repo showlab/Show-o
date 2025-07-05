@@ -199,7 +199,7 @@ Below is an example to train Show-o2 with 1.5B LLM parameters on one node with 8
 
 (As the code is manually cleaned based on our original codes without other inspection. Feel free to contact me if you encounter any issues)
 ### Data Preparation
-We did use our `internal packages` to load large-scale data shards. For convenience, we here simply implement a dataset classes (`./datasets`) based on torch `Dataset`. We recommend other packages like `webdataset` when loading large-scale datasets.
+We did use our `internal packages` to load large-scale data shards. For convenience, we here simply implement a dataset class (`./datasets`) based on torch `Dataset`. We recommend other packages like `webdataset` when loading large-scale datasets.
 
 ### Stage-1
 Prepare a `.jsonl` annotation file for your image-text pairs in the format as follows and change the `path` in `./configs`:
