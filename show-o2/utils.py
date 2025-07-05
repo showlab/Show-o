@@ -161,6 +161,8 @@ def get_hyper_params(config, text_tokenizer, showo_token_ids, is_video=False, is
            vid_pad_id, guidance_scale
 
 
+# these save and recover functions are based on our internal packages
+# please modified them when necessary
 def save_dataloader_state(rank, loader, ckpt_path="./"):
     ckpt_path = os.path.join(ckpt_path, f"loader_{rank}.ckpt")
     saved_state = deepcopy(loader.__getstate__())
