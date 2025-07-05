@@ -226,7 +226,7 @@ bash train_showo2_1.5b_stage2.sh
 ```
 
 ### Add additional high-quality image generation, interleaved image-text, or video data
-In our experiments, we add additional these kinds of additional data in stage-1 to enhance the base show-o2 models with more comprehensive capabilities. We will provide the scripts and code soon.
+In our experiments, we add these kinds of additional data in stage-1 to enhance the base show-o2 models with more comprehensive capabilities. We will provide the scripts and code soon.
 
 ### Simple downstream fine-tuning for mixed-modality generation
 More comprehensive training codes on interleaved image-text pairs will be provided soon. Here, we simply take the mixed-modality generation on [visual storytelling](https://visionandlanguage.net/VIST/index.html) dataset as an example. 
