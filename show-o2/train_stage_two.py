@@ -329,6 +329,9 @@ def main():
             model.load_state_dict(state_dict, strict=False if config.model.showo.params_not_load is not None else True)
             del state_dict
 
+        # we recommend save and load the dataloader state
+        # these save and recover functions are based on our internal packages
+        # please modified them when necessary
         # recover_dataloader_state(accelerator.process_index, train_dataloader_t2i, config.experiment.output_dataloader_state_dir)
 
     # Combine these dataloaders into a single iterable model
@@ -618,6 +621,9 @@ def main():
 
     # Evaluate and save checkpoint at the end of training
     save_checkpoint(model, config, accelerator, "final")
+    # we recommend save and load the dataloader state
+    # these save and recover functions are based on our internal packages
+    # please modified them when necessary
     # save_dataloader_state(accelerator.process_index, train_dataloader_t2i, config.experiment.output_dataloader_state_dir)
     # logger.info(f"Saved dataloader state to {config.experiment.output_dataloader_state_dir}")
 
