@@ -83,7 +83,9 @@ Login your wandb account on your machine or server.
 wandb login <your wandb keys>
 ```
 Download Wan2.1 3D causal VAE model weight [here](https://huggingface.co/Wan-AI/Wan2.1-T2V-14B/blob/main/Wan2.1_VAE.pth) and put it on the current directory.
-
+``` 
+wget https://huggingface.co/Wan-AI/Wan2.1-T2V-14B/resolve/main/Wan2.1_VAE.pth
+```
 Demo for **Multimodal Understanding** and you can find the results on wandb.
 ```
 python3 inference_mmu.py config=configs/showo2_7b_demo_432x432.yaml \
