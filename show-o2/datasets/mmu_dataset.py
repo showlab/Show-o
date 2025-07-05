@@ -25,7 +25,6 @@ import torch.utils.data as data
 import copy
 from PIL import Image
 IGNORE_INDEX = -100
-# IGNORE_INDEX = 100
 
 class MMUDataset(data.Dataset):
     def __init__(
