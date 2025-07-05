@@ -7,6 +7,7 @@ experiment:
     project: "showo2-1.5b-stage-2-release"
     name: "showo2-1.5b-stage-2-a"
     output_dir: "showo2-1.5b-stage-2-a"
+    output_dataloader_state_dir: "64gpus_dataloader_states"
     max_train_examples_t2i: 100000000 # 100M
     max_train_examples_mmu: 100000000 # 100M
     save_every: 10000000
