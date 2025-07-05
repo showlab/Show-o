@@ -127,7 +127,7 @@ def get_hyper_params(config, text_tokenizer, showo_token_ids, is_video=False, is
         max_text_len = max_seq_len - num_video_tokens - 4
         latent_width = config.dataset.preprocessing.video_latent_width
         latent_height = config.dataset.preprocessing.video_latent_height
-        num_image_tokens = config.dataset.preprocessing.num_image_tokens
+        num_image_tokens = config.dataset.preprocessing.num_t2i_image_tokens
     else:
         if is_hq:
             latent_width = config.dataset.preprocessing.hq_latent_width
@@ -136,7 +136,7 @@ def get_hyper_params(config, text_tokenizer, showo_token_ids, is_video=False, is
             max_seq_len = config.dataset.preprocessing.max_hq_seq_length
             max_text_len = max_seq_len - num_image_tokens - 4
         else:
-            num_image_tokens = config.dataset.preprocessing.num_image_tokens
+            num_image_tokens = config.dataset.preprocessing.num_t2i_image_tokens
             latent_width = config.dataset.preprocessing.latent_width
             latent_height = config.dataset.preprocessing.latent_height
             max_text_len = max_seq_len - num_image_tokens - 4
