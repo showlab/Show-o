@@ -6,8 +6,8 @@ wandb:
 
 experiment:
     project: "show-o2-2b-stage-1"
-    name: "show-o2-qwen2-5-1.5b-downstream-mixed-modality-432x432"
-    output_dir: "show-o2-qwen2-5-1.5b-downstream-mixed-modality-432x432"
+    name: "show-o2-1.5b-downstream-mixed-modality-432x432"
+    output_dir: "show-o2-1.5b-downstream-mixed-modality-432x432"
     output_dataloader_state_dir: null
     max_train_examples_t2i: 60000000 # 10M HQ generation data
     max_train_examples_mmu: null
