@@ -39,7 +39,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 ## News
 * **[2025-07-05]** **Fix some issues related to visualization of generated images during training.**
-* **[2025-07-05]** We release the training and inference code for simple mixed-modality generation on VIST dataset.
+* **[2025-07-05]** We release the training and inference code for simple mixed-modality generation.
 * **[2025-06-27]** We release the training code for multimodal understanding and generation.
 * **[2025-06-25]** We thank team [OneIG-Bench](https://github.com/OneIG-Bench/OneIG-Benchmark) for evaluating Show-o2 models on their new benchmark, in which our models have achieved leading performance in terms of Alignment and Reasoning metrics. The leaderboard is maintained [here](https://oneig-bench.github.io/).
 
