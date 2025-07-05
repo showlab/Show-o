@@ -36,6 +36,7 @@ from models.lr_schedulers import get_scheduler
 from models.my_logging import set_verbosity_info, set_verbosity_error
 from models.misc import prepare_gen_input, get_text_tokenizer, get_weight_type
 from torch.nn.attention.flex_attention import flex_attention
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 if torch.cuda.is_available():
     flex_attention = torch.compile(flex_attention)
