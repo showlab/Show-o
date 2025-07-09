@@ -66,6 +66,7 @@ Below is an overview of **Show-o2**. We perform the unified learning of multimod
 - [X] Release the evaluation code.
 - [X] Release the training code.
 - [X] Release the models supporting image generation in a higher resolution (512x512 and 1024x1024) with better text rendering.
+- [X] Release the training and inference code for simple downstream mixed-modality generation.
 - [ ] Release the models supporting mixed-modality generation.
 - [ ] Release the models supporting image-to-video and text-to-video generation.
 
