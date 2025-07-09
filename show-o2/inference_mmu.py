@@ -79,10 +79,11 @@ if __name__ == '__main__':
     # for time embedding
     if config.model.showo.add_time_embeds:
         # we prepend the time embedding to vision tokens
-        config.dataset.preprocessing.num_image_tokens += 1
+        config.dataset.preprocessing.num_t2i_image_tokens += 1
+        config.dataset.preprocessing.num_mmu_image_tokens += 1
         config.dataset.preprocessing.num_video_tokens += 1
 
-    num_image_tokens, num_video_tokens, max_seq_len, max_text_len, image_latent_dim, patch_size, latent_width, \
+    num_t2i_image_tokens, num_mmu_image_tokens, num_video_tokens, max_seq_len, max_text_len, image_latent_dim, patch_size, latent_width, \
     latent_height, pad_id, bos_id, eos_id, boi_id, eoi_id, bov_id, eov_id, img_pad_id, vid_pad_id, guidance_scale \
         = get_hyper_params(config, text_tokenizer, showo_token_ids)
 
@@ -140,8 +141,7 @@ if __name__ == '__main__':
                     image_embeds,
                     text_embeds_b[:, 1:]
                 ], dim=1).to(weight_type)
-                modality_positions = torch.tensor([text_tokens_a.shape[1] + 2,
-                                                   config.dataset.preprocessing.num_image_tokens])[None, None, :].to(device)
+                modality_positions = torch.tensor([text_tokens_a.shape[1] + 2, num_mmu_image_tokens])[None, None, :].to(device)
             else:
                 input_embeds = torch.cat([
                     text_embeds_a,
@@ -149,8 +149,7 @@ if __name__ == '__main__':
                     image_embeds,
                     text_embeds_b[:, 1:]
                 ], dim=1).to(weight_type)
-                modality_positions = torch.tensor([text_tokens_a.shape[1] + 1,
-                                                   config.dataset.preprocessing.num_image_tokens])[None, None, :].to(device)
+                modality_positions = torch.tensor([text_tokens_a.shape[1] + 1, num_mmu_image_tokens])[None, None, :].to(device)
 
             attention_mask = omni_attn_mask_naive(
                 B=input_embeds.size(0),

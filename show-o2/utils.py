@@ -127,19 +127,22 @@ def get_hyper_params(config, text_tokenizer, showo_token_ids, is_video=False, is
         max_text_len = max_seq_len - num_video_tokens - 4
         latent_width = config.dataset.preprocessing.video_latent_width
         latent_height = config.dataset.preprocessing.video_latent_height
-        num_image_tokens = config.dataset.preprocessing.num_t2i_image_tokens
+        num_t2i_image_tokens = config.dataset.preprocessing.num_t2i_image_tokens
+        num_mmu_image_tokens = config.dataset.preprocessing.num_mmu_image_tokens
     else:
         if is_hq:
             latent_width = config.dataset.preprocessing.hq_latent_width
             latent_height = config.dataset.preprocessing.hq_latent_height
-            num_image_tokens = config.dataset.preprocessing.num_hq_image_tokens
+            num_t2i_image_tokens = config.dataset.preprocessing.num_hq_image_tokens
+            num_mmu_image_tokens = config.dataset.preprocessing.num_mmu_image_tokens
             max_seq_len = config.dataset.preprocessing.max_hq_seq_length
-            max_text_len = max_seq_len - num_image_tokens - 4
+            max_text_len = max_seq_len - num_t2i_image_tokens - 4
         else:
-            num_image_tokens = config.dataset.preprocessing.num_t2i_image_tokens
+            num_t2i_image_tokens = config.dataset.preprocessing.num_t2i_image_tokens
+            num_mmu_image_tokens = config.dataset.preprocessing.num_mmu_image_tokens
             latent_width = config.dataset.preprocessing.latent_width
             latent_height = config.dataset.preprocessing.latent_height
-            max_text_len = max_seq_len - num_image_tokens - 4
+            max_text_len = max_seq_len - num_t2i_image_tokens - 4
 
     image_latent_dim = config.model.showo.image_latent_dim
     patch_size = config.model.showo.patch_size
@@ -156,7 +159,7 @@ def get_hyper_params(config, text_tokenizer, showo_token_ids, is_video=False, is
 
     guidance_scale = config.transport.guidance_scale
 
-    return num_image_tokens, num_video_tokens, max_seq_len, max_text_len, image_latent_dim, patch_size, \
+    return num_t2i_image_tokens, num_mmu_image_tokens, num_video_tokens, max_seq_len, max_text_len, image_latent_dim, patch_size, \
            latent_width, latent_height, pad_id, bos_id, eos_id, boi_id, eoi_id, bov_id, eov_id, img_pad_id, \
            vid_pad_id, guidance_scale
 

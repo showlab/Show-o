@@ -43,7 +43,8 @@ dataset:
     preprocessing:
         max_seq_length: 1024
         resolution: 432
-        num_image_tokens: 729
+        num_t2i_image_tokens: 729
+        num_mmu_image_tokens: 729
         num_video_tokens: 3645
         num_mixed_modal_tokens: 729
         latent_height: ${model.showo.image_latent_height}

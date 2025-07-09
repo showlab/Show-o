@@ -38,11 +38,12 @@ model:
 
 dataset:
     params:
-        validation_prompts_file: "prompts/paper_prompts.txt"
+        validation_prompts_file: "prompts/t2i_prompts.txt"
     preprocessing:
         max_seq_length: 1280
         resolution: 512
-        num_image_tokens: 1024
+        num_t2i_image_tokens: 1024
+        num_mmu_image_tokens: 729
         num_video_tokens: 3645
         latent_height: ${model.showo.image_latent_height}
         latent_width: ${model.showo.image_latent_width}
