@@ -206,12 +206,12 @@ We did use our `internal packages` to load large-scale data shards. For convenie
 Prepare a `.jsonl` annotation file for your image-text pairs in the format as follows and change the `path` in `./configs`:
 ```
 {
-    "image_path": "path/to/your/image1",
-    "prompt": "a description of the image1"
+    "image_path": "path/to/your/image",
+    "prompt": "image caption"
 }
 {
-    "image_path": "path/to/your/image2",
-    "prompt": "a description of the image2"
+    "image_path": "path/to/your/image",
+    "prompt": "image caption"
 }
 ```
 
@@ -235,6 +235,26 @@ More comprehensive training codes on interleaved image-text pairs will be provid
 
 Following the instructions to download the dataset visual storytelling data [here](https://visionandlanguage.net/VIST/dataset.html) and our processed annotation [here](https://huggingface.co/datasets/Sierkinhane/show-o2-data-annotations/blob/main/vist_train_annotations.json).
 
+The data annotation format is shown as follows:
+```
+[
+    {
+        "images": [
+            "path/to/your/image",
+            "path/to/your/image",
+            ...
+        ],
+        "captions": [
+            "image caption",
+            "image caption",
+            ...
+        ],
+    },
+    {
+        ...
+    },
+]
+```
 We use this config `conigs/showo2_1.5b_downstream_mixed_modality_simple.yaml` and set `frozen_params` as follows for the warm-up training:
 ``` 
 frozen_params: ['image_embedder_und', 'und_trans', 'showo', 'position_embedding']
