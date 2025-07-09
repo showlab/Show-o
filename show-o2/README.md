@@ -225,6 +225,7 @@ Follow [LLaVA-OneVision](https://github.com/LLaVA-VL/LLaVA-NeXT/tree/main/script
 ``` 
 bash train_showo2_1.5b_stage2.sh
 ```
+To train 7B models, please refer to `train_showo2_7b_stage1.sh` and `train_showo2_7b_stage2.sh`.
 
 ### Add additional high-quality image generation, interleaved image-text, or video data
 In our experiments, we add these kinds of additional data in stage-1 to enhance the base show-o2 models with more comprehensive capabilities. We will provide the scripts and code soon.
