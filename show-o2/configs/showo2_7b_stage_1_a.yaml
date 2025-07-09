@@ -3,10 +3,10 @@ wandb:
   resume: 'auto'
 
 experiment:
-    project: "showo2-1.5b-stage-1-release"
-    name: "showo2-1.5b-stage-1-a"
-    output_dir: "show-o2-1.5b-stage-1-a"
-    output_dataloader_state_dir: "64gpus_dataloader_states"
+    project: "showo2-7b-stage-1-release"
+    name: "showo2-7b-stage-1-a"
+    output_dir: "showo2-7b-stage-1-a"
+    output_dataloader_state_dir: "128gpus_dataloader_states"
     max_train_examples_t2i: 66000000
     max_train_examples_mmu: 66000000
     save_every: 10000
@@ -24,9 +24,9 @@ model:
         model_name: "Showo2"
         load_from_showo: False
         pretrained_model_path: ""
-        llm_model_path: "Qwen/Qwen2.5-1.5B-Instruct"
+        llm_model_path: "Qwen/Qwen2.5-7B-Instruct"
         llm_vocab_size: null # will be updated when setting the tokenizer in other code files
-        hidden_size: 1536
+        hidden_size: 3584
         image_latent_dim: 16
         image_latent_height: 27
         image_latent_width: 27
@@ -40,7 +40,8 @@ model:
         add_qk_norm: True
         add_time_embeds: True
         frozen_params: ['image_embedder_und', 'und_trans', 'showo', 'position_embedding']
-        params_not_load: null
+        # used to only load pre-trained flow_head from the 1.5B show-o2 model
+        params_not_load: ['image_embedder_gen', 'showo', 'fusion_proj', 'diff_proj', 'time_embed_proj']
 
     clip:
         pretrained_model_path: "google/siglip-so400m-patch14-384"

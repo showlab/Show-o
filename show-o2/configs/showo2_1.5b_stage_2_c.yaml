@@ -2,7 +2,7 @@ wandb:
   entity: null
 #  run_id: blvqij6q
   resume: 'auto'
-# -2 from pretraining with lr2e-5
+
 experiment:
     project: "showo2-1.5b-stage-2-release"
     name: "showo2-1.5b-stage-2-c"

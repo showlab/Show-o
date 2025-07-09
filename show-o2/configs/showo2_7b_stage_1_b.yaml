@@ -3,14 +3,14 @@ wandb:
   resume: 'auto'
 
 experiment:
-    project: "showo2-1.5b-stage-1-release"
-    name: "showo2-1.5b-stage-1-a"
-    output_dir: "show-o2-1.5b-stage-1-a"
-    output_dataloader_state_dir: "64gpus_dataloader_states"
-    max_train_examples_t2i: 66000000
+    project: "showo2-7b-stage-1-release"
+    name: "showo2-7b-stage-1-b"
+    output_dir: "showo2-7b-stage-1-b"
+    output_dataloader_state_dir: "128gpus_dataloader_states"
+    max_train_examples_t2i: 10000000
     max_train_examples_mmu: 66000000
     save_every: 10000
-    generate_every: 1000
+    generate_every: 10
     log_every: 50
     log_grad_norm_every: 500
     resume_from_checkpoint: 'latest'
@@ -24,9 +24,9 @@ model:
         model_name: "Showo2"
         load_from_showo: False
         pretrained_model_path: ""
-        llm_model_path: "Qwen/Qwen2.5-1.5B-Instruct"
+        llm_model_path: "Qwen/Qwen2.5-7B-Instruct"
         llm_vocab_size: null # will be updated when setting the tokenizer in other code files
-        hidden_size: 1536
+        hidden_size: 3584
         image_latent_dim: 16
         image_latent_height: 27
         image_latent_width: 27
@@ -81,7 +81,7 @@ dataset:
         hq_latent_width: ${model.showo.hq_image_latent_width}
         mixed_modal_latent_height: ${model.showo.hq_image_latent_height}
         mixed_modal_latent_width: ${model.showo.hq_image_latent_width}
-        min_res: [256, 256] # minimum image resolution
+        min_res: [ 256, 256 ] # minimum image resolution
         random_und_or_gen: 0.0
 
 optimizer:
@@ -98,7 +98,7 @@ lr_scheduler:
     scheduler: "constant_with_warmup"
     params:
         learning_rate: ${optimizer.params.learning_rate}
-        warmup_steps: 2000
+        warmup_steps: 0
 
 transport:
     path_type: "Linear"
@@ -122,8 +122,8 @@ training:
     batch_size_mmu: 2
     mixed_precision: "bf16"
     enable_tf32: True
-    seed: 10086
-    max_train_steps: 150000
+    seed: 10000
+    max_train_steps: 40000
     cond_dropout_prob: 0.1
     label_smoothing: 0.0
     max_grad_norm: 1.0

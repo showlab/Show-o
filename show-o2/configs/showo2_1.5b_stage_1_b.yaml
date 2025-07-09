@@ -3,8 +3,8 @@ wandb:
   resume: 'auto'
 
 experiment:
-    project: "show-o2-1.5b-stage-1-release"
-    name: "show-o2-1.5b-stage-1-b"
+    project: "showo2-1.5b-stage-1-release"
+    name: "showo2-1.5b-stage-1-b"
     output_dir: "show-o2-1.5b-stage-1-b"
     output_dataloader_state_dir: "64gpus_dataloader_states"
     max_train_examples_t2i: 10000000
