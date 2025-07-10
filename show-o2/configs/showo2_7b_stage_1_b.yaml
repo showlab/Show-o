@@ -10,7 +10,7 @@ experiment:
     max_train_examples_t2i: 10000000
     max_train_examples_mmu: 66000000
     save_every: 10000
-    generate_every: 10
+    generate_every: 1000
     log_every: 50
     log_grad_norm_every: 500
     resume_from_checkpoint: 'latest'
