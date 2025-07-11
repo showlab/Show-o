@@ -127,6 +127,7 @@ bash evaluation/sample_geneval.sh
 
 # Create an independent environment for GenEval
 conda create -n GenEval python=3.8 -y
+conda activate GenEval
 pip3 install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117
 
 git clone https://github.com/djghosh13/geneval.git
@@ -160,22 +161,28 @@ python3 evaluation/summary_scores.py "results.jsonl"
 # Generate images
 bash evaluation/sample_dpg.sh
 
-# Create an independent environment for DPG-Bench (we use PyTorch 2.5.1)
-pip3 install modelscope==1.22.2; (if encountering issues, try modelscope==1.20.0)
+
+# Create an independent environment for DPG-Bench
+conda create -n DPG-Bench python=3.10 -y
+conda activate DPG-Bench
+pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+
+pip3 install modelscope==1.22.2 (if encountering issues, please try modelscope==1.20.0)
 pip3 install librosa==0.10.1
 pip3 install git+https://github.com/One-sixth/fairseq.git
-pip3 install opencv-python;
-pip3 install unicodedata2;
-pip3 install zhconv;
-pip3 install rapidfuzz;
-pip3 install numpy==1.23.5;
-pip3 install addict;
-pip3 install datasets==2.21.0;
-pip3 install simplejson;
-pip3 install sortedcontainers;
+pip3 install opencv-python
+pip3 install unicodedata2
+pip3 install zhconv
+pip3 install rapidfuzz
+pip3 install numpy==1.23.5
+pip3 install addict
+pip3 install datasets==2.21.0
+pip3 install simplejson
+pip3 install sortedcontainers
 
-# Evaluate
-cd evaluation;
+
+# Evaluation
+cd evaluation
 bash dist_eval.sh /path/to/your/generated/images image_resolution
 ```
 
