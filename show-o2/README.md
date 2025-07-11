@@ -124,25 +124,37 @@ python3 inference_t2i.py config=configs/showo2_7b_demo_432x432.yaml \
 # Generate images
 bash evaluation/sample_geneval.sh
 
-# Create an independent environment for GenEval (we use PyTorch 1.10.0)
+
+# Create an independent environment for GenEval
+conda create -n GenEval python=3.8 -y
+pip3 install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117
+
 git clone https://github.com/djghosh13/geneval.git
 cd geneval
-./evaluation/download_models.sh 'weights';
-git clone https://github.com/open-mmlab/mmdetection.git
-cd mmdetection; git checkout 2.x;
-pip3 install -v -e .;
-sudo pip3 install open-clip-torch;
-sudo pip3 install clip-benchmark;
-pip3 install -U openmim;
-mim install mmcv-full;
+bash ./evaluation/download_models.sh 'weights'
 
-# Evaluate
+pip3 install -U openmim
+mim install mmengine
+mim install "mmcv>=2.0.0"
+git clone https://github.com/open-mmlab/mmdetection.git
+cd mmdetection
+git checkout 2.x
+pip3 install -v -e .
+cd ..
+
+sudo pip3 install open-clip-torch
+sudo pip3 install clip-benchmark
+
+
+# Evaluation
 python3 evaluation/evaluate_images.py \
     "/path/to/your/generated/images" \
     --outfile "results.jsonl" \
     --model-path "./weights";
-python3 evaluation/summary_scores.py "results.jsonl";
+    
+python3 evaluation/summary_scores.py "results.jsonl"
 ```
+
 ### DPG-Bench
 ```
 # Generate images
