@@ -83,13 +83,13 @@ if __name__ == '__main__':
     # for time embedding
     if config.model.showo.add_time_embeds:
         # we prepend the time embedding to vision tokens
-        config.dataset.preprocessing.num_image_tokens += 1
+        config.dataset.preprocessing.num_t2i_image_tokens += 1
         config.dataset.preprocessing.num_video_tokens += 1
 
     with open(config.dataset.params.validation_prompts_file, "r") as f:
         validation_prompts = f.read().splitlines()
 
-    num_image_tokens, num_video_tokens, max_seq_len, max_text_len, image_latent_dim, patch_size, latent_width, \
+    num_t2i_image_tokens, _, num_video_tokens, max_seq_len, max_text_len, image_latent_dim, patch_size, latent_width, \
     latent_height, pad_id, bos_id, eos_id, boi_id, eoi_id, bov_id, eov_id, img_pad_id, vid_pad_id, guidance_scale \
         = get_hyper_params(config, text_tokenizer, showo_token_ids)
 
@@ -113,7 +113,7 @@ if __name__ == '__main__':
         sample_eps=config.transport.sample_eps,
         snr_type=config.transport.snr_type,
         do_shift=config.transport.do_shift,
-        seq_len=config.dataset.preprocessing.num_image_tokens,
+        seq_len=config.dataset.preprocessing.num_t2i_image_tokens,
     )  # default: velocity;
 
     sampler = Sampler(transport)
@@ -132,7 +132,7 @@ if __name__ == '__main__':
 
         batch_text_tokens, batch_text_tokens_null, batch_modality_positions, batch_modality_positions_null = \
             prepare_gen_input(
-                prompts, text_tokenizer, num_image_tokens, bos_id, eos_id, boi_id, eoi_id, pad_id, img_pad_id,
+                prompts, text_tokenizer, num_t2i_image_tokens, bos_id, eos_id, boi_id, eoi_id, pad_id, img_pad_id,
                 max_text_len, device
             )
 
