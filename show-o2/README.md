@@ -225,11 +225,11 @@ We did use our `internal packages` to load large-scale data shards. For convenie
 Prepare a `.jsonl` annotation file for your image-text pairs in the format as follows and change the `path` in `./configs`:
 ```
 {
-    "image_path": "path/to/your/image",
+    "path": "path/to/your/image",
     "prompt": "image caption"
 }
 {
-    "image_path": "path/to/your/image",
+    "path": "path/to/your/image",
     "prompt": "image caption"
 }
 ```
