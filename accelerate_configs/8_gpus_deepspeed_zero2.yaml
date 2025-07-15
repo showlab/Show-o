@@ -4,7 +4,7 @@ deepspeed_config:
   gradient_accumulation_steps: 1
   offload_optimizer_device: none
   offload_param_device: none
-  zero3_init_flag: true
+  zero3_init_flag: false
   zero_stage: 2
 distributed_type: DEEPSPEED
 downcast_bf16: 'no'
