@@ -128,6 +128,10 @@ Below is an overview of **Show-o**. The input data, regardless of its modalities
 - [ ] Scale up the model size (based on LLaMA3) and increase the number of training data.
 
 ## Hugging Face models and annotations
+The Show-o2 checkpoints can be found on Hugging Face:
+* [showlab/show-o2-1.5B](https://huggingface.co/showlab/show-o2-1.5B)
+* [showlab/show-o2-1.5B-HQ](https://huggingface.co/showlab/show-o2-1.5B-HQ) (text-to-image generation in resolutions of 512x512 and 1024x1024 with better text rendering)
+* [showlab/show-o2-7B](https://huggingface.co/showlab/show-o2-7B)
 
 The Show-o checkpoints can be found on [Hugging Face](https://huggingface.co/showlab):
 * [showlab/show-o-512x512](https://huggingface.co/showlab/show-o-512x512)
