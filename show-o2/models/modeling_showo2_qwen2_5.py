@@ -112,7 +112,7 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
 
     def reset_parameters(self):
 
-        # Initialize image emebedders
+        # Initialize image embedders
         w1 = self.image_embedder_und.proj.weight.data
         nn.init.xavier_uniform_(w1.view([w1.shape[0], -1]))
         nn.init.constant_(self.image_embedder_und.proj.bias, 0)
