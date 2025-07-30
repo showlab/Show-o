@@ -174,7 +174,7 @@ pip3 install opencv-python
 pip3 install unicodedata2
 pip3 install zhconv
 pip3 install rapidfuzz
-pip3 install numpy==1.23.5
+pip3 install numpy==1.26.4
 pip3 install addict
 pip3 install datasets==2.21.0
 pip3 install simplejson
