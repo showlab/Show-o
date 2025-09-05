@@ -38,6 +38,7 @@ Zhijie Chen<sup>2</sup>&nbsp;
 
 
 ## News
+* **[2025-09-05]** Release the 1.5B and 7B models with video understanding capability.
 * **[2025-07-05]** **Fix some issues related to visualization of generated images during training.**
 * **[2025-07-05]** We release the training and inference code for simple mixed-modality generation.
 * **[2025-06-27]** We release the training code for multimodal understanding and generation.
@@ -132,6 +133,8 @@ The Show-o2 checkpoints can be found on Hugging Face:
 * [showlab/show-o2-1.5B](https://huggingface.co/showlab/show-o2-1.5B)
 * [showlab/show-o2-1.5B-HQ](https://huggingface.co/showlab/show-o2-1.5B-HQ) (text-to-image generation in resolutions of 512x512 and 1024x1024 with better text rendering)
 * [showlab/show-o2-7B](https://huggingface.co/showlab/show-o2-7B)
+* [showlab/show-o2-1.5B](https://huggingface.co/showlab/show-o2-1.5B-w-video-und) (further unified fine-tuning on video understanding data)
+* [showlab/show-o2-7B](https://huggingface.co/showlab/show-o2-7B-w-video-und) (further unified fine-tuning on video understanding data)
 
 The Show-o checkpoints can be found on [Hugging Face](https://huggingface.co/showlab):
 * [showlab/show-o-512x512](https://huggingface.co/showlab/show-o-512x512)

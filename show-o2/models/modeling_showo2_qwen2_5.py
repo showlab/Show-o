@@ -528,14 +528,14 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
         device = input_embeds.device
-
+        dtype = input_embeds.dtype
         result = []
         for _ in range(max_new_tokens):
             # if the sequence context is growing too long we must crop it at block_size
             # idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
             # forward the model to get the logits for the index in the sequence
             # logits, _ = self(idx_cond)
-            logits = self.showo(inputs_embeds=input_embeds, attention_mask=attention_mask)['logits']
+            logits = self.showo(inputs_embeds=input_embeds, attention_mask=attention_mask.to(dtype))['logits']
 
             L = attention_mask.shape[-1]
             attention_mask = attention_mask.squeeze()
@@ -566,7 +566,7 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             result.append(idx_next[0][0])
             # append sampled index to the running sequence and continue
             idx_next_embeds = self.showo.model.embed_tokens(idx_next)
-            input_embeds = torch.cat([input_embeds, idx_next_embeds], dim=1)
+            input_embeds = torch.cat([input_embeds, idx_next_embeds], dim=1).to(dtype)
 
             if eos_token is not None and idx_next.cpu() == eos_token:
                 break
@@ -670,7 +670,6 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             raise NotImplementedError
 
         for _ in range(max_new_tokens):
-
             # Generate the next token
             logits = self.forward_und_only(
                 text_tokens=torch.tensor([generated_tokens]).to(device),

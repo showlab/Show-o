@@ -14,6 +14,7 @@
 </div>
 
 ## News
+* **[2025-09-05]** Release the 1.5B and 7B models with video understanding capability.
 * **[2025-07-05]** **Fix some issues related to visualization of generated images during training.**
 * **[2025-07-05]** We release the training and inference code for simple mixed-modality generation.
 * **[2025-06-27]** We release the training code for multimodal understanding and generation.
@@ -67,6 +68,7 @@ Below is an overview of **Show-o2**. We perform the unified learning of multimod
 - [X] Release the training code.
 - [X] Release the models supporting image generation in a higher resolution (512x512 and 1024x1024) with better text rendering.
 - [X] Release the training and inference code for simple downstream mixed-modality generation.
+- [X] Release the models supporting video understanding.
 - [ ] Release the models supporting mixed-modality generation.
 - [ ] Release the models supporting image-to-video and text-to-video generation.
 
@@ -75,6 +77,8 @@ The Show-o2 checkpoints can be found on Hugging Face:
 * [showlab/show-o2-1.5B](https://huggingface.co/showlab/show-o2-1.5B)
 * [showlab/show-o2-1.5B-HQ](https://huggingface.co/showlab/show-o2-1.5B-HQ) (text-to-image generation in resolutions of 512x512 and 1024x1024 with better text rendering)
 * [showlab/show-o2-7B](https://huggingface.co/showlab/show-o2-7B)
+* [showlab/show-o2-1.5B](https://huggingface.co/showlab/show-o2-1.5B-w-video-und) (further unified fine-tuning on video understanding data)
+* [showlab/show-o2-7B](https://huggingface.co/showlab/show-o2-7B-w-video-und) (further unified fine-tuning on video understanding data)
 
 ## Getting Started
 First, set up the environment:
@@ -89,8 +93,9 @@ Download Wan2.1 3D causal VAE model weight [here](https://huggingface.co/Wan-AI/
 ``` 
 wget https://huggingface.co/Wan-AI/Wan2.1-T2V-14B/resolve/main/Wan2.1_VAE.pth
 ```
-Demo for **Multimodal Understanding** and you can find the results on wandb.
+Demo for **Multimodal Understanding (Image/Video)** and you can find the results on wandb.
 ```
+# image-level
 python3 inference_mmu.py config=configs/showo2_7b_demo_432x432.yaml \
                          mmu_image_path=./docs/mmu/pexels-jane-pham-727419-1571673.jpg question='Describe the image in detail.'
 
@@ -99,6 +104,15 @@ python3 inference_mmu.py config=configs/showo2_7b_demo_432x432.yaml \
 
 python3 inference_mmu.py config=configs/showo2_7b_demo_432x432.yaml \
                          mmu_image_path=./docs/mmu/pexels-taryn-elliott-4144459.jpg question='How many avocados (including the halved) are in this image? Tell me how to make an avocado milkshake in detail.'
+
+# video
+python3 inference_mmu_vid.py config=configs/showo2_7b_demo_video_understanding.yaml \
+                             mmu_video_path='./docs/videos/' question="Describe the video."  \
+                             num_video_frames_mmu=32
+
+python3 inference_mmu_vid.py config=configs/showo2_1.5b_demo_video_understanding.yaml \
+                             mmu_video_path='./docs/videos/' question="Describe the video."  \
+                             num_video_frames_mmu=32
 ```
 <img src="docs/demo1.png" width="1000">
 
