@@ -1,0 +1,48 @@
+wandb:
+  entity: null
+#  run_id: askkz9i2
+  resume: 'auto'
+
+experiment:
+    project: "demo"
+    name: "show-o-demo"
+    output_dir: "show-o-demo"
+
+model:
+    vq_model:
+        type: "magvitv2"
+        vq_model_name: "showlab/magvitv2"
+
+    showo:
+        pretrained_model_path: "showlab/show-o-w-clip-vit-512x512"
+        w_clip_vit: True
+        vocab_size: 58498
+        llm_vocab_size: 50295
+        llm_model_path: 'microsoft/phi-1_5'
+        codebook_size: 8192
+        num_vq_tokens: 1024
+        num_new_special_tokens: 10  # <|soi|> <|eoi|> <|sov|> <|eov|> <|t2i|> <|mmu|> <|t2v|> <|v2v|> <|lvg|> <|pad|>
+
+    gradient_checkpointing: True
+
+dataset:
+    gen_type: "t2i"
+    und_type: "captioning"
+    params:
+        batch_size: ${training.batch_size}
+        shuffle_buffer_size: 1000
+        num_workers: 32
+        resolution: 512
+        pin_memory: True
+        persistent_workers: True
+
+    preprocessing:
+        max_seq_length: 128
+        resolution: 512
+        center_crop: False
+        random_flip: False
+
+training:
+    gradient_accumulation_steps: 1
+    cond_dropout_prob: 0.1
+    batch_size: 20
