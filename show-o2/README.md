@@ -14,7 +14,7 @@
 </div>
 
 ## News
-* **[2025-09-18]** Arxiv update to include video understanding, OneIG, and more ablation study results.
+* **[2025-09-18]** [Arxiv update](https://arxiv.org/pdf/2506.15564) to include video understanding, OneIG, and more ablation study results.
 * **[2025-09-18]** **Show-o2 has been accepted to NeurIPS 2025.**
 * **[2025-09-05]** Release the 1.5B and 7B models with video understanding capability.
 * **[2025-07-05]** **Fix some issues related to visualization of generated images during training.**
