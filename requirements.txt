@@ -135,7 +135,7 @@ pyasn1==0.6.0
 pycocotools==2.0.7
 pycparser==2.22
 pycryptodomex==3.20.0
-pycurl==7.43.0.6
+
 pydantic==1.10.15
 pydantic_core==2.18.3
 Pygments==2.18.0
