@@ -232,4 +232,5 @@ dependencies = [
     "zope.deprecation==5.0",
     "zope.interface==6.4.post2",
     "zope.sqlalchemy==3.1",
+    "ipykernel>=6.30.1",
 ]
