@@ -200,7 +200,7 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
         p = self.config.patch_size
         h_, w_ = h // p, w // p
         # specific for fixed resolution of 432x432
-        if self.position_embedding.weight.shape[-1] == self.image_position_ids.shape[-1]:
+        if self.position_embedding.weight.shape[0] == self.image_position_ids.shape[-1]:
             image_embeds_und = image_embeds_und + self.position_embedding(self.image_position_ids)
             image_embeds_und = self.und_trans(image_embeds_und)['last_hidden_state']
         # interpolate position embeddings for dynamic resolution
@@ -305,7 +305,7 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             p = self.config.patch_size
             h_, w_ = h // p, w // p
             # specific for fixed resolution of 432x432
-            if self.position_embedding.weight.shape[-1] == self.image_position_ids.shape[-1]:
+            if self.position_embedding.weight.shape[0] == self.image_position_ids.shape[-1]:
                 image_embeds_und = image_embeds_und + self.position_embedding(self.image_position_ids)
                 image_embeds_und = self.und_trans(image_embeds_und)['last_hidden_state']
             # interpolate position embeddings for dynamic resolution
