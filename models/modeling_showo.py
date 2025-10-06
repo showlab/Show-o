@@ -141,7 +141,7 @@ class Showo(ModelMixin, ConfigMixin):
                 # logits = uncond_logits + guidance_scale * (cond_logits - uncond_logits)
                 # it seems that muse has a different cfg setting
                 logits = (1 + guidance_scale) * cond_logits - guidance_scale * uncond_logits
-                logits = logits[:, -(num_vq_tokens + 1):-1, config.model.showo.llm_vocab_size + num_new_special_tokens:-1]
+                logits = logits[:, -(num_vq_tokens + 1):-1, config.model.showo.llm_vocab_size + num_new_special_tokens:-1] # there we leave only logits for image tokens
             else:
                 logits = self(input_ids, attention_mask=attention_mask)
                 logits = logits[:, -(num_vq_tokens + 1):-1, config.model.showo.llm_vocab_size + num_new_special_tokens:-1]

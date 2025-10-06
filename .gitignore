@@ -1,0 +1,85 @@
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python specific
+__pycache__/
+*.pyc
+*.pyd
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# Jupyter Notebook specific
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+*.nbdata
+*.nbconvert
+
+# Data files (large and often not version-controlled)
+data/
+datasets/
+raw_data/
+processed_data/
+*.csv
+*.tsv
+*.xlsx
+*.parquet
+*.hdf5
+*.pkl
+*.feather
+*.npy
+*.npz
+
+# Model files (can be large and often stored in dedicated model registries)
+models/
+checkpoints/
+*.pt
+*.pth
+*.h5
+*.keras
+*.onnx
+*.pb
+*.ckpt
+
+# Log files and temporary outputs
+logs/
+*.log
+tmp/
+temp/
+output/
+results/
+*.out
+*.err
+
+# Environment variables and sensitive information
+.env
+config.ini
+credentials.json
+api_keys.py
+
+# IDE and editor specific files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Experiment tracking (e.g., MLflow, Weights & Biases)
+mlruns/
+wandb/
+
+# DVC (Data Version Control) specific files
+.dvc/
+*.dvc
+
+show-o-demo/*
+
+uv.lock
