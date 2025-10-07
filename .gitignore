@@ -40,7 +40,7 @@ processed_data/
 *.npz
 
 # Model files (can be large and often stored in dedicated model registries)
-models/
+# models/
 checkpoints/
 *.pt
 *.pth

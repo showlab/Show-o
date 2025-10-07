@@ -19,6 +19,7 @@ from transformers import AutoConfig
 from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
 from .sampling import cosine_schedule, mask_by_random_topk
 from .phi import PhiForCausalLM
+from .moe import MoE
 
 class Showo(ModelMixin, ConfigMixin):
     _supports_gradient_checkpointing = True
@@ -33,6 +34,10 @@ class Showo(ModelMixin, ConfigMixin):
             codebook_size=8192,
             num_vq_tokens=256,
             load_from_showo=True,
+            use_moe=False,
+            moe_num_experts=4,
+            moe_top_k=2,
+            moe_layers=6,
             **kwargs,
     ):
         super().__init__()
@@ -46,6 +51,9 @@ class Showo(ModelMixin, ConfigMixin):
         self.showo.resize_token_embeddings(self.vocab_size)
         self.output_size = self.vocab_size
 
+        if use_moe:
+            self._replace_mlp_with_moe(moe_num_experts, moe_top_k, moe_layers)
+
         if self.w_clip_vit:
             self.mm_projector = torch.nn.Sequential(
                 torch.nn.Linear(1024, 2048),
@@ -53,6 +61,33 @@ class Showo(ModelMixin, ConfigMixin):
                 torch.nn.Linear(2048, 2048)
             )
 
+    def _replace_mlp_with_moe(self, num_experts, top_k, last_n_layers):
+        """Replace PhiMLP with MoE in last N decoder layers"""
+        phi_model = self.showo.model
+        total_layers = len(phi_model.layers)
+        start_idx = total_layers - last_n_layers
+        
+        print(f"Replacing MLP with MoE in layers {start_idx}-{total_layers-1}")
+        print(f"  num_experts={num_experts}, top_k={top_k}")
+        
+        for layer_idx in range(start_idx, total_layers):
+            layer = phi_model.layers[layer_idx]
+            old_mlp = layer.mlp
+            hidden_size = old_mlp.config.hidden_size
+            
+            # Create MoE
+            moe = MoE(
+                num_experts=num_experts,
+                hidden_size=hidden_size,
+                top_k=top_k
+            )
+            
+            # Replace
+            layer.mlp = moe
+            print(f"  Layer {layer_idx}: PhiMLP → MoE")
+        
+        print(f"✓ MoE replacement complete")
+    
     def _set_gradient_checkpointing(self, module, value=False):
         self.gradient_checkpointing = True
 
