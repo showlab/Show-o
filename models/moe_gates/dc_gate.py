@@ -8,8 +8,8 @@ decisions of capacities on each worker.
 import math
 import torch
 import torch.nn.functional as F
-from naive_gate import NaiveGate
-from utils import limit_by_capacity
+from .naive_gate import NaiveGate
+from .utils import limit_by_capacity
 
 
 class DCGate(NaiveGate):

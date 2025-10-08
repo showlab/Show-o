@@ -45,7 +45,7 @@ from models import Showo, MAGVITv2, CLIPVisionTower, get_mask_chedule
 from training.prompting_utils import UniversalPrompting, create_attention_mask_predict_next, \
     create_attention_mask_for_mmu_vit
 from models.lr_schedulers import get_scheduler
-from models.logging import set_verbosity_info, set_verbosity_error
+from models.loggerport set_verbosity_info, set_verbosity_error
 
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler

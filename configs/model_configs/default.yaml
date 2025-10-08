@@ -1,0 +1,7 @@
+# Default FFN configuration
+model:
+  showo:
+    decoder_layer:
+      ffn:
+        _target_: models.decoder.FFNDefault
+        config: ${model.showo}

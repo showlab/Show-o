@@ -13,13 +13,13 @@ an environement variable `FMOE_TOPO_OUTGOING_FRACTION`, and it is by default
 guided by some performance model, to achieve maximum throughput.
 """
 
-from naive_gate import NaiveGate
+from .naive_gate import NaiveGate
 
 import os
 import sys
 import torch
 import torch.nn.functional as F
-from utils import limit_by_capacity, count_by_gate
+from .utils import limit_by_capacity, count_by_gate
 
 # Note: FasterGate is for advanced distributed training with topology-aware routing
 # Some features may require CUDA extensions

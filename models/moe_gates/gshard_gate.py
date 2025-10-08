@@ -2,12 +2,8 @@ import math
 import torch
 import torch.nn.functional as F
 
-try:
-    from .naive_gate import NaiveGate
-    from .utils import limit_by_capacity, prune_gate_by_capacity
-except ImportError:
-    from naive_gate import NaiveGate
-    from utils import limit_by_capacity, prune_gate_by_capacity
+from .naive_gate import NaiveGate
+from .utils import limit_by_capacity, prune_gate_by_capacity
 
 
 class GShardGate(NaiveGate):

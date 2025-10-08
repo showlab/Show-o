@@ -1,0 +1,7 @@
+# MoE configuration
+model:
+  showo:
+    decoder_layer:
+      ffn:
+        _target_: models.decoder.MoE
+        config: ${model.showo}

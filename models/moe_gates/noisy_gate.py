@@ -4,10 +4,7 @@ import torch.nn.functional as F
 from torch.distributions.normal import Normal
 import math
 
-try:
-    from .base_gate import BaseGate
-except ImportError:
-    from base_gate import BaseGate
+from .base_gate import BaseGate
 
 
 class NoisyGate(BaseGate):
