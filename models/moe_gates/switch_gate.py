@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .naive_gate import NaiveGate
-from .utils import limit_by_capacity
+from naive_gate import NaiveGate
+from utils import limit_by_capacity
 
 
 class SwitchGate(NaiveGate):
@@ -12,9 +12,17 @@ class SwitchGate(NaiveGate):
     A switch gate implementation
     """
 
-    def __init__(self, d_model, num_expert, world_size, top_k=1,
-            switch_eps=.1, capacity=(20, 20), gate_bias=True):
-        assert top_k == 1, 'top_k should be 1 in switch'
+    def __init__(
+        self,
+        d_model,
+        num_expert,
+        world_size,
+        top_k=1,
+        switch_eps=0.1,
+        capacity=(20, 20),
+        gate_bias=True,
+    ):
+        assert top_k == 1, "top_k should be 1 in switch"
         super().__init__(d_model, num_expert, world_size, top_k=1, gate_bias=gate_bias)
         self.switch_eps = switch_eps
         self.capacity = capacity
@@ -43,16 +51,20 @@ class SwitchGate(NaiveGate):
         # capacity = math.ceil(cap_rate * inp.shape[0] / self.num_expert)
         capacity = self.capacity[0 if self.training else 1]
         _new_lec, _new_gec, top1_idx = limit_by_capacity(
-                top1_idx, self.num_expert, self.world_size, capacity)
+            top1_idx, self.num_expert, self.world_size, capacity
+        )
 
         valid_idx = top1_idx[top1_idx > -1]
-        fraction_expert = torch.scatter_add(
+        fraction_expert = (
+            torch.scatter_add(
                 torch.zeros(self.tot_expert, device=valid_idx.device),
                 0,
                 valid_idx,
                 torch.ones_like(valid_idx, dtype=torch.float),
-            ) / valid_idx.numel()
+            )
+            / valid_idx.numel()
+        )
         prob_expert = score.sum(dim=0) / valid_idx.numel()
         loss = (fraction_expert * prob_expert).sum() * self.tot_expert
         self.set_loss(loss)
-        return top1_idx, top1_score 
+        return top1_idx, top1_score

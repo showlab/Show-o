@@ -2,11 +2,12 @@ r"""
 Naive gate
 Adapted from FastMoE: https://github.com/laekov/fastmoe
 """
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .base_gate import BaseGate
+from base_gate import BaseGate
 
 
 class NaiveGate(BaseGate):
@@ -21,7 +22,7 @@ class NaiveGate(BaseGate):
 
     def __init__(self, d_model, num_expert, world_size, top_k=2, gate_bias=True):
         super().__init__(num_expert, world_size)
-        self.gate = nn.Linear(d_model, self.tot_expert, bias = gate_bias)
+        self.gate = nn.Linear(d_model, self.tot_expert, bias=gate_bias)
         self.top_k = top_k
 
     def forward(self, inp, return_all_scores=False):
