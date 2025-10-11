@@ -12,37 +12,38 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Logging utilities."""
+"""Logging utilities."""
 
 import logging
 import os
 import sys
 import threading
-from logging import CRITICAL  # NOQA
-from logging import DEBUG  # NOQA
-from logging import ERROR  # NOQA
-from logging import FATAL  # NOQA
-from logging import INFO  # NOQA
-from logging import NOTSET  # NOQA
-from logging import WARN  # NOQA
-from logging import WARNING  # NOQA
 from typing import Optional
 
 from tqdm import auto as tqdm_lib
+
+CRITICAL = logging.CRITICAL
+DEBUG = logging.DEBUG
+ERROR = logging.ERROR
+FATAL = logging.FATAL
+INFO = logging.INFO
+NOTSET = logging.NOTSET
+WARN = logging.WARN
+WARNING = logging.WARNING
+
 
 _lock = threading.Lock()
 _default_handler: Optional[logging.Handler] = None
 
 log_levels = {
-    "debug": logging.DEBUG,
-    "info": logging.INFO,
-    "warning": logging.WARNING,
-    "error": logging.ERROR,
-    "critical": logging.CRITICAL,
+    "debug": DEBUG,
+    "info": INFO,
+    "warning": WARNING,
+    "error": ERROR,
+    "critical": CRITICAL,
 }
 
 _default_log_level = logging.WARNING
-
 _tqdm_active = True
 
 
@@ -57,7 +58,7 @@ def _get_default_logging_level():
             return log_levels[env_level_str]
         else:
             logging.getLogger().warning(
-                f"Unknown option muse_VERBOSITY={env_level_str}, has to be one of: { ', '.join(log_levels.keys()) }"
+                f"Unknown option muse_VERBOSITY={env_level_str}, has to be one of: {', '.join(log_levels.keys())}"
             )
     return _default_log_level
 
@@ -246,7 +247,9 @@ def enable_explicit_format() -> None:
     handlers = _get_library_root_logger().handlers
 
     for handler in handlers:
-        formatter = logging.Formatter("[%(levelname)s|%(filename)s:%(lineno)s] %(asctime)s >> %(message)s")
+        formatter = logging.Formatter(
+            "[%(levelname)s|%(filename)s:%(lineno)s] %(asctime)s >> %(message)s"
+        )
         handler.setFormatter(formatter)
 
 

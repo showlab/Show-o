@@ -1,0 +1,3 @@
+defaults:
+  - showo_base
+  - model_configs/moe

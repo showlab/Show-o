@@ -20,12 +20,12 @@ from PIL import Image
 from tqdm import tqdm
 import numpy as np
 import torch
-import wandb
 from models import Showo, MAGVITv2, get_mask_chedule
 from training.prompting_utils import UniversalPrompting, create_attention_mask_predict_next
 from training.utils import get_config, flatten_omega_conf, image_transform
 from transformers import AutoTokenizer
 import torch.nn.functional as F
+from datetime import datetime
 
 def get_vq_model_class(model_type):
     if model_type == "magvitv2":
@@ -33,26 +33,23 @@ def get_vq_model_class(model_type):
     else:
         raise ValueError(f"model_type {model_type} not supported.")
 
-if __name__ == '__main__':
 
-    config = get_config()
 
-    resume_wandb_run = config.wandb.resume
-    run_id = config.wandb.get("run_id", None)
-    if run_id is None:
-        resume_wandb_run = False
-        run_id = wandb.util.generate_id()
-        config.wandb.run_id = run_id
+def get_model(config):
+    model = Showo.from_pretrained(config.model.showo.pretrained_model_path)
+    return model
 
-    wandb_config = {k: v for k, v in flatten_omega_conf(config, resolve=True)}
 
-    wandb.init(
-        project="demo",
-        name=config.experiment.name + '_t2i' + f'_{config.mode}',
-        config=wandb_config,
-    )
+def run_t2i(config, model):
+    device = config.device
+    model = model.to(device)
+    model.eval()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = os.path.join(config.experiment.output_dir, f"inference_{config.mode}_{timestamp}")
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"Saving images to: {output_dir}")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     tokenizer = AutoTokenizer.from_pretrained(config.model.showo.llm_model_path, padding_side="left")
 
     uni_prompting = UniversalPrompting(tokenizer, max_text_len=config.dataset.preprocessing.max_seq_length,
@@ -64,22 +61,19 @@ if __name__ == '__main__':
     vq_model.requires_grad_(False)
     vq_model.eval()
 
-    model = Showo.from_pretrained(config.model.showo.pretrained_model_path).to(device)
-    model.eval()
-
     mask_token_id = model.config.mask_token_id
 
     # load from users passed arguments
     if config.get("validation_prompts_file", None) is not None:
         config.dataset.params.validation_prompts_file = config.validation_prompts_file
-    config.training.batch_size = config.batch_size
-    config.training.guidance_scale = config.guidance_scale
-    config.training.generation_timesteps = config.generation_timesteps
+    config.training.batch_size = config.get("batch_size", config.training.batch_size)
+    config.training.guidance_scale = config.get("guidance_scale", 3.0)
+    config.training.generation_timesteps = config.get("generation_timesteps", 18)
     # load from users passed arguments
 
     if config.mode == 'inpainting':
 
-        prompt = [config.prompt] * config.batch_size
+        prompt = [config.prompt] * config.training.batch_size
         inpainting_image = Image.open(config.image_path).convert("RGB")
         inpainting_mask = Image.open(config.inpainting_mask_path).convert("L")
 
@@ -94,8 +88,9 @@ if __name__ == '__main__':
         images = images.permute(0, 2, 3, 1).cpu().numpy().astype(np.uint8)
         pil_images = [Image.fromarray(image) for image in images]
 
-        labels = ['original image', 'inpainting mask']
-        wandb_images = [wandb.Image(image, caption=labels[i]) for i, image in enumerate(pil_images)]
+        labels = ['original_image', 'inpainting_mask']
+        for i, image in enumerate(pil_images):
+            image.save(os.path.join(output_dir, f"{labels[i]}.png"))
 
         inpainting_image = inpainting_image.unsqueeze(0).repeat(config.training.batch_size, 1, 1, 1)
 
@@ -158,10 +153,12 @@ if __name__ == '__main__':
         images *= 255.0
         images = images.permute(0, 2, 3, 1).cpu().numpy().astype(np.uint8)
         pil_images = [Image.fromarray(image) for image in images]
-        # import ipdb
-        # ipdb.set_trace()
-        wandb_images.extend([wandb.Image(image, caption=prompt[i]) for i, image in enumerate(pil_images)])
-        wandb.log({"generated_images": wandb_images}, step=0)
+        
+        # Save generated images
+        for i, image in enumerate(pil_images):
+            filename = f"inpainted_{i:04d}.png"
+            image.save(os.path.join(output_dir, filename))
+        print(f"Saved {len(pil_images)} inpainted images to {output_dir}")
 
     elif config.mode == 'extrapolation':
 
@@ -280,8 +277,10 @@ if __name__ == '__main__':
         images = images.permute(0, 2, 3, 1).cpu().numpy().astype(np.uint8)
         pil_images = [Image.fromarray(image) for image in images]
 
-        wandb_images = [wandb.Image(image, caption=' '.join(prompt)) for i, image in enumerate(pil_images)]
-        wandb.log({"generated_images": wandb_images}, step=0)
+        for i, image in enumerate(pil_images):
+            filename = f"extrapolated_{i:04d}.png"
+            image.save(os.path.join(output_dir, filename))
+        print(f"Saved {len(pil_images)} extrapolated images to {output_dir}")
 
     elif config.mode == 't2i':
         with open(config.dataset.params.validation_prompts_file, "r") as f:
@@ -340,5 +339,17 @@ if __name__ == '__main__':
             images = images.permute(0, 2, 3, 1).cpu().numpy().astype(np.uint8)
             pil_images = [Image.fromarray(image) for image in images]
 
-            wandb_images = [wandb.Image(image, caption=prompts[i]) for i, image in enumerate(pil_images)]
-            wandb.log({"generated_images": wandb_images}, step=step)
+            for i, image in enumerate(pil_images):
+                img_idx = step + i
+                filename = f"t2i_{img_idx:04d}.png"
+                image.save(os.path.join(output_dir, filename))
+                with open(os.path.join(output_dir, f"t2i_{img_idx:04d}.txt"), "w") as f:
+                    f.write(prompts[i])
+        
+        print(f"Saved {len(validation_prompts)} text-to-image results to {output_dir}")
+
+
+if __name__ == '__main__':
+    config = get_config()
+    model = get_model(config)
+    run_t2i(config, model)

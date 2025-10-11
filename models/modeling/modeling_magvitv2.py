@@ -2,9 +2,9 @@ from dataclasses import dataclass, field
 import numpy as np
 import torch
 import torch.nn as nn
-from .common_modules import *
+from ..common_modules import *
 from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
-from .misc import *
+from ..misc import *
 import math
 
 class Updateable:

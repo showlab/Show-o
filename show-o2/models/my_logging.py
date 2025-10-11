@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Logging utilities."""
+"""Logging utilities."""
 
 import logging
 import os
@@ -57,7 +57,7 @@ def _get_default_logging_level():
             return log_levels[env_level_str]
         else:
             logging.getLogger().warning(
-                f"Unknown option muse_VERBOSITY={env_level_str}, has to be one of: { ', '.join(log_levels.keys()) }"
+                f"Unknown option muse_VERBOSITY={env_level_str}, has to be one of: {', '.join(log_levels.keys())}"
             )
     return _default_log_level
 
@@ -246,7 +246,9 @@ def enable_explicit_format() -> None:
     handlers = _get_library_root_logger().handlers
 
     for handler in handlers:
-        formatter = logging.Formatter("[%(levelname)s|%(filename)s:%(lineno)s] %(asctime)s >> %(message)s")
+        formatter = logging.Formatter(
+            "[%(levelname)s|%(filename)s:%(lineno)s] %(asctime)s >> %(message)s"
+        )
         handler.setFormatter(formatter)
 
 
