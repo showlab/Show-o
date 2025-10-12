@@ -21,7 +21,7 @@ from typing import Optional, Union
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 
-from .loggerport get_logger
+from .logger import get_logger
 
 logger = get_logger(__name__)
 

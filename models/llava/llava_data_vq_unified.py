@@ -11,7 +11,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torch.utils.data.distributed import DistributedSampler
 from training.utils import image_transform
-from llava.llava import conversation as conversation_lib
+from models.llava.llava import conversation as conversation_lib
 
 DEFAULT_IMAGE_TOKEN = "<image>"
 IGNORE_INDEX = -100
@@ -124,7 +124,6 @@ def preprocess_v0(
 
 
 class LLaVADataset(Dataset):
-
     def __init__(self,
                  tokenizer,
                  phase,
@@ -134,8 +133,8 @@ class LLaVADataset(Dataset):
         self.tokenizer = tokenizer
 
         if phase == "pretrain":
-            data_file_path = "/mnt/bn/vgfm2/test_dit/blip_laion_cc_sbu_558k.json"
-            self.image_root = "/mnt/bn/vgfm2/test_dit/pretraining_data"
+            data_file_path = "/home/jovyan/vasiliev/notebooks/Show-o/data/llava_pretrain/blip_laion_cc_sbu_558k.json"
+            self.image_root = "/home/jovyan/vasiliev/notebooks/Show-o/data/llava_pretrain/images"
         else:
             data_file_path = "/mnt/bn/vgfm2/test_dit/llava_v1_5_mix665k.json"
             self.image_root = "/mnt/bn/vgfm2/test_dit/tuning_data"
