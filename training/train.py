@@ -27,9 +27,12 @@ from typing import Union
 import numpy as np
 from PIL import Image
 from omegaconf import OmegaConf
-import wandb
+# import wandb  # отключено для работы в России
+import mlflow
+from mlflow.tracking import MlflowClient
 import torch
 from torch.optim import AdamW
+from tqdm import tqdm
 from lightning.pytorch.utilities import CombinedLoader
 
 from transformers import AutoTokenizer
@@ -37,20 +40,27 @@ from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import DistributedType, set_seed
 
+import sys
+sys.path.insert(0, '/home/jovyan/vasiliev/notebooks/Show-o')
+
+import mlflow
+from mlflow.tracking import MlflowClient
+
 from training.data import Text2ImageDataset
 from training.imagenet_dataset import ImageNetDataset
-from parquet import RefinedWebDataset
+# from parquet import RefinedWebDataset  # закомментировано, используем только MMU
 
 from models import Showo, MAGVITv2, get_mask_chedule
 from training.prompting_utils import UniversalPrompting, create_attention_mask_predict_next, \
     create_attention_mask_for_mmu
 from models.lr_schedulers import get_scheduler
-from models.loggerport set_verbosity_info, set_verbosity_error
+from models.logger import set_verbosity_info, set_verbosity_error
+from moe_utils import patch_and_freeze_moe, log_stats_to_mlflow, LayerOutputRecorder  # MoE support
 
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from llava.llava_data_vq_unified import get_instruct_data_loader
+from models.llava.llava_data_vq_unified import get_instruct_data_loader
 
 SYSTEM_PROMPT_LEN = 28
 
@@ -64,6 +74,25 @@ except ImportError:
     is_apex_available = False
 
 logger = get_logger(__name__, log_level="INFO")
+
+
+def collect_moe_balance_losses(model):
+    total_balance_loss = 0.0
+    num_moe_layers = 0
+    if hasattr(model, 'module'):
+        unwrapped_model = model.module
+    else:
+        unwrapped_model = model
+    
+    for layer_idx, layer in enumerate(unwrapped_model.showo.model.layers):
+        if hasattr(layer, 'mlp') and hasattr(layer.mlp, 'gate'):
+            if hasattr(layer.mlp.gate, 'get_loss') and layer.mlp.gate.has_loss:
+                gate_loss = layer.mlp.gate.get_loss(clear=True)  # clear=True чтобы не накапливать
+                if gate_loss is not None:
+                    total_balance_loss += gate_loss
+                    num_moe_layers += 1
+                    logger.debug(f"MoE layer {layer_idx}: balance_loss = {gate_loss.item():.6f}")
+    return total_balance_loss
 
 
 def get_vq_model_class(model_type):
@@ -91,7 +120,7 @@ def main():
     accelerator = Accelerator(
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,
         mixed_precision=config.training.mixed_precision,
-        log_with="wandb",
+        log_with="mlflow" if config.get("mlflow", {}).get("enabled", False) else None,  # MLflow вместо wandb
         project_dir=config.experiment.logging_dir,
         split_batches=True,
     )
@@ -124,31 +153,39 @@ def main():
     else:
         set_verbosity_error()
 
-    # We need to initialize the trackers we use, and also store our configuration.
-    # The trackers initializes automatically on the main process.
-    if accelerator.is_main_process:
-        resume_wandb_run = config.wandb.resume
-        run_id = config.wandb.get("run_id", None)
-        if run_id is None:
-            resume_wandb_run = False
-            run_id = wandb.util.generate_id()
-            config.wandb.run_id = run_id
-
-        wandb_init_kwargs = dict(
-            name=config.experiment.name,
-            id=run_id,
-            resume=resume_wandb_run,
-            entity=config.wandb.get("entity", None),
-            config_exclude_keys=[],
+    mlflow_client = None
+    mlflow_run_id = None
+    if accelerator.is_main_process and config.get("mlflow", {}).get("enabled", False):
+        mlflow_tracking_uri = config.mlflow.get("tracking_uri", "file:./mlruns")
+        mlflow.set_tracking_uri(mlflow_tracking_uri)
+        mlflow_client = MlflowClient(tracking_uri=mlflow_tracking_uri)
+        experiment_name = config.mlflow.get("experiment_name", config.experiment.project)
+        try:
+            experiment = mlflow_client.get_experiment_by_name(experiment_name)
+            if experiment is None:
+                experiment_id = mlflow_client.create_experiment(experiment_name)
+            else:
+                experiment_id = experiment.experiment_id
+        except:
+            experiment_id = mlflow_client.create_experiment(experiment_name)
+        
+        run = mlflow_client.create_run(
+            experiment_id=experiment_id,
+            run_name=config.experiment.name,
+            tags=config.mlflow.get("tags", {})
         )
-        wandb_config = {k: v for k, v in flatten_omega_conf(config, resolve=True)}
-        wandb_config.pop("experiment.resume_from_checkpoint")
-
-        accelerator.init_trackers(
-            config.experiment.project,
-            config=wandb_config,
-            init_kwargs={"wandb": wandb_init_kwargs},
-        )
+        mlflow_run_id = run.info.run_id
+        
+        mlflow_client.log_param(mlflow_run_id, "batch_size_mmu", config.training.batch_size_mmu)
+        mlflow_client.log_param(mlflow_run_id, "batch_size_t2i", config.training.batch_size_t2i)
+        mlflow_client.log_param(mlflow_run_id, "batch_size_lm", config.training.batch_size_lm)
+        mlflow_client.log_param(mlflow_run_id, "learning_rate", config.optimizer.params.learning_rate)
+        mlflow_client.log_param(mlflow_run_id, "num_experts", config.moe.get("num_experts", 4))
+        mlflow_client.log_param(mlflow_run_id, "top_k", config.moe.get("top_k", 2))
+        mlflow_client.log_param(mlflow_run_id, "max_train_steps", config.training.max_train_steps)
+        mlflow_client.log_param(mlflow_run_id, "gradient_accumulation_steps", config.training.gradient_accumulation_steps)
+        
+        logger.info(f"✅ MLflow run started: {mlflow_run_id}")
 
     if accelerator.is_main_process:
         os.makedirs(config.experiment.output_dir, exist_ok=True)
@@ -201,6 +238,24 @@ def main():
             model.mask_token_id = config.model.showo.vocab_size - 1
     else:
         model = Showo(**config.model.showo).to(accelerator.device)
+    
+    if config.get("moe", None) and config.moe.get("enabled", False):
+        special_tokens = {
+            'soi_id': uni_prompting.sptids_dict['<|soi|>'].item() if '<|soi|>' in uni_prompting.sptids_dict else None,
+            'eoi_id': uni_prompting.sptids_dict['<|eoi|>'].item() if '<|eoi|>' in uni_prompting.sptids_dict else None,
+            'sov_id': uni_prompting.sptids_dict['<|sov|>'].item() if '<|sov|>' in uni_prompting.sptids_dict else None,
+            'eov_id': uni_prompting.sptids_dict['<|eov|>'].item() if '<|eov|>' in uni_prompting.sptids_dict else None,
+        }
+        
+        model = patch_and_freeze_moe(
+            model, 
+            num_experts=config.moe.get("num_experts", 4), 
+            top_k=config.moe.get("top_k", 2),
+            mlflow_client=mlflow_client,
+            mlflow_run_id=mlflow_run_id,
+            special_tokens=special_tokens
+        )
+    
     mask_id = model.mask_token_id
 
     ##################################
@@ -401,17 +456,21 @@ def main():
     else:
         raise NotImplementedError(f"Unsupported dataset type {config.dataset.und_type}")
 
-    # LLM pure text dataset: RefinedWeb
-    dataset_lm = RefinedWebDataset(data_path=dataset_config.train_lm_shards_path_or_url,
-                                   rank=accelerator.process_index,
-                                   world_size=accelerator.num_processes,
-                                   num_workers=dataset_config.num_workers)
+    class DummyLMDataset:
+        def __len__(self):
+            return 1000000
+        def __getitem__(self, idx):
+            return {'input_ids': [0]}  # dummy
+        def collate_fn(self, batch):
+            return {'input_ids': ['dummy text'] * len(batch)}
+    
+    train_dataloader_lm = torch.utils.data.DataLoader(
+        DummyLMDataset(), 
+        batch_size=config.training.batch_size_lm,
+        sampler=None, 
+        collate_fn=DummyLMDataset().collate_fn
+    )
 
-    train_dataloader_lm = torch.utils.data.DataLoader(dataset_lm, batch_size=config.training.batch_size_lm,
-                                                      sampler=None, collate_fn=dataset_lm.collate_fn,
-                                                      num_workers=dataset_config.num_workers)
-
-    # Combine these dataloaders into a single iterable model
     iterables = {
         "t2i_flow": train_dataloader_t2i,
         "lm_flow": train_dataloader_lm,
@@ -453,7 +512,7 @@ def main():
     if hasattr(model, 'module'):
         mask_dtype = model.module.showo.model.embed_tokens.weight.dtype
     else:
-        mask_dtype = model.showo.model.embed_tokens.weight.dtype
+        mask_dtype = accelerator.unwrap_model(model).showo.model.embed_tokens.weight.dtype
 
     ##################################
     #             Training          #
@@ -493,6 +552,17 @@ def main():
 
     for epoch in range(first_epoch, num_train_epochs):
         model.train()
+        
+        pbar = None
+        if accelerator.is_main_process:
+            pbar = tqdm(
+                total=config.training.max_train_steps - global_step,
+                desc=f"Epoch {epoch}",
+                initial=0,
+                unit="step",
+                colour="green"
+            )
+        
         for batch, batch_idx, dataloader_idx in combined_dataloader:
             # for loss calculation
             batch_size_t2i = batch["t2i_flow"]["images"].shape[0]
@@ -603,13 +673,24 @@ def main():
                 avg_loss_t2i = accelerator.gather(loss_t2i.repeat(config.training.batch_size_t2i)).mean()
                 avg_loss_lm = accelerator.gather(loss_lm.repeat(config.training.batch_size_lm)).mean()
                 avg_loss_mmu = accelerator.gather(loss_mmu.repeat(config.training.batch_size_mmu)).mean()
+                
+                # Собираем balance loss от MoE гейтов
+                balance_loss = collect_moe_balance_losses(model)
+                balance_coeff = config.training.get("balance_coeff", 0.01)  # Коэффициент для balance loss
+                
+                # Главный лосс с включением balance loss
                 loss = config.training.t2i_coeff * loss_t2i + \
                        config.training.lm_coeff * loss_lm + \
-                       config.training.mmu_coeff * loss_mmu
+                       config.training.mmu_coeff * loss_mmu + \
+                       balance_coeff * balance_loss
 
                 avg_masking_rate = accelerator.gather(mask_prob.repeat(config.training.batch_size_t2i)).mean()
 
                 accelerator.backward(loss)
+                
+                # Очищаем кэш GPU для освобождения памяти
+                if torch.cuda.is_available() and (global_step + 1) % config.training.gradient_accumulation_steps == 0:
+                    torch.cuda.empty_cache()
 
                 if config.training.max_grad_norm is not None and accelerator.sync_gradients:
                     accelerator.clip_grad_norm_(model.parameters(), config.training.max_grad_norm)
@@ -626,6 +707,13 @@ def main():
                     log_grad_norm(model, accelerator, global_step + 1)
 
                 optimizer.zero_grad(set_to_none=True)
+                if accelerator.is_main_process and pbar is not None:
+                    pbar.update(1)
+                    pbar.set_postfix({
+                        'loss_mmu': f'{avg_loss_mmu.item():.4f}',
+                        'loss_t2i': f'{avg_loss_t2i.item():.4f}',
+                        'lr': f'{lr_scheduler.get_last_lr()[0]:.2e}',
+                    })
 
             # Checks if the accelerator has performed an optimization step behind the scenes
             if accelerator.sync_gradients:
@@ -642,19 +730,28 @@ def main():
                         "step_loss_t2i": avg_loss_t2i.item(),
                         "step_loss_mmu": avg_loss_mmu.item(),
                         "step_loss_lm": avg_loss_lm.item(),
+                        "step_loss_balance": balance_loss.item(),
+                        "balance_coeff": balance_coeff,
                         "lr": lr_scheduler.get_last_lr()[0],
                         "avg_masking_rate": avg_masking_rate.item(),
                         "samples/sec/gpu": samples_per_second_per_gpu,
                         "data_time": data_time_m.val,
                         "batch_time": batch_time_m.val,
                     }
-                    accelerator.log(logs, step=global_step + 1)
+                    if mlflow_client is not None and mlflow_run_id is not None:
+                        for metric_name, metric_value in logs.items():
+                            mlflow_client.log_metric(mlflow_run_id, metric_name, metric_value, step=global_step + 1)
+                        unwrapped_model = accelerator.unwrap_model(model)
+                        for layer in unwrapped_model.showo.model.layers:
+                            if hasattr(layer, 'mlp') and hasattr(layer.mlp, 'set_global_step'):
+                                layer.mlp.set_global_step(global_step + 1)
 
                     logger.info(
                         f"Step: {global_step + 1} "
                         f"Loss_t2i: {avg_loss_t2i.item():0.4f} "
                         f"Loss_mmu: {avg_loss_mmu.item():0.4f} "
                         f"Loss_lm: {avg_loss_lm.item():0.4f} "
+                        f"Loss_balance: {balance_loss.item():0.6f} "
                         f"Data (t): {data_time_m.val:0.4f}, {samples_per_second_per_gpu:0.2f}/s/gpu "
                         f"Batch (t): {batch_time_m.val:0.4f} "
                         f"LR: {lr_scheduler.get_last_lr()[0]:0.6f}"
@@ -663,6 +760,49 @@ def main():
                     # resetting batch / data time meters per log window
                     batch_time_m.reset()
                     data_time_m.reset()
+
+                # Сбор статистик активаций для MoE (каждые 500 шагов)
+                if (global_step + 1) % 500 == 0 and config.get("moe", {}).get("enabled", False) and accelerator.is_main_process:
+                    try:
+                        # Создаем рекордер для сбора статистик
+                        recorder = LayerOutputRecorder(device=accelerator.device)
+                        
+                        # Регистрируем хуки на MoE слои
+                        unwrapped_model = accelerator.unwrap_model(model)
+                        moe_modules = []
+                        for layer_idx, layer in enumerate(unwrapped_model.showo.model.layers):
+                            if hasattr(layer, 'mlp') and hasattr(layer.mlp, 'experts'):
+                                moe_modules.append((f"layer_{layer_idx}", layer.mlp))
+                        
+                        if moe_modules:
+                            recorder.register_hooks(moe_modules)
+                            
+                            # Выполняем один forward pass для сбора статистик
+                            with torch.no_grad():
+                                # Используем текущий батч для сбора статистик
+                                _ = model(
+                                    input_ids=input_ids,
+                                    input_embeddings=None,
+                                    attention_mask=attention_mask,
+                                    labels=labels,
+                                    label_smoothing=config.training.label_smoothing,
+                                    batch_size_t2i=batch_size_t2i,
+                                    batch_size_lm=batch_size_lm,
+                                    batch_size_mmu=batch_size_mmu,
+                                    max_seq_length=config.dataset.preprocessing.max_seq_length,
+                                )
+                            
+                            # Логируем статистики в MLflow
+                            if mlflow_client is not None and mlflow_run_id is not None:
+                                log_stats_to_mlflow(recorder, mlflow_client, mlflow_run_id, global_step + 1, "moe_activations")
+                            
+                            # Очищаем рекордер
+                            recorder.remove_hooks()
+                            recorder.clear()
+                            del recorder
+                            
+                    except Exception as e:
+                        logger.warning(f"Ошибка сбора статистик активаций: {e}")
 
                 # Save model checkpoint
                 if (global_step + 1) % config.experiment.save_every == 0:
@@ -694,17 +834,18 @@ def main():
 
                 global_step += 1
 
-            # Stop training if max steps is reached
             if global_step >= config.training.max_train_steps:
                 break
-            # End for
+        if accelerator.is_main_process:
+            pbar.close()
 
     accelerator.wait_for_everyone()
-
-    # Evaluate and save checkpoint at the end of training
     save_checkpoint(model, config, accelerator, global_step)
+    
+    if mlflow_client is not None and mlflow_run_id is not None:
+        mlflow_client.set_terminated(mlflow_run_id, status="FINISHED")
+        logger.info("✅ MLflow run завершен")
 
-    # Save the final trained checkpoint
     if accelerator.is_main_process:
         model = accelerator.unwrap_model(model)
         model.save_pretrained(config.experiment.output_dir, safe_serialization=False)
@@ -755,10 +896,10 @@ def visualize_predictions(
     predicted_images = np.concatenate((images, recons_images, predicted_images), 2)
     pil_images = [Image.fromarray(image) for image in predicted_images]
 
-    # Log images
-    wandb_images = [wandb.Image(image, caption=f'mask ratio: {r:0.2f} \n caption: {texts[i]}') for i, (image, r) in
-                    enumerate(zip(pil_images, mask_ratio))]
-    wandb.log({"Original images v.s. Reconstructed images v.s. Predicted images": wandb_images}, step=global_step)
+    # wandb_images = [wandb.Image(image, caption=f'mask ratio: {r:0.2f} \n caption: {texts[i]}') for i, (image, r) in
+    #                 enumerate(zip(pil_images, mask_ratio))]
+    # wandb.log({"Original images v.s. Reconstructed images v.s. Predicted images": wandb_images}, step=global_step)
+    logger.info(f"Визуализация предсказаний завершена (wandb отключен)")
 
     model.train()
 
@@ -783,7 +924,7 @@ def generate_images(
     if hasattr(model, 'module'):
         mask_dtype = model.module.showo.model.embed_tokens.weight.dtype
     else:
-        mask_dtype = model.showo.model.embed_tokens.weight.dtype
+        mask_dtype = accelerator.unwrap_model(model).showo.model.embed_tokens.weight.dtype
 
     mask_token_id = config.model.showo.vocab_size - 1
     image_tokens = torch.ones((len(validation_prompts), config.model.showo.num_vq_tokens), dtype=torch.long,
@@ -843,14 +984,15 @@ def generate_images(
     images = images.permute(0, 2, 3, 1).cpu().numpy().astype(np.uint8)
     pil_images = [Image.fromarray(image) for image in images]
 
-    # Log images
-    wandb_images = [wandb.Image(image, caption=validation_prompts[i]) for i, image in enumerate(pil_images)]
-    wandb.log({"Generated images": wandb_images}, step=global_step)
+    # wandb_images = [wandb.Image(image, caption=validation_prompts[i]) for i, image in enumerate(pil_images)]
+    # wandb.log({"Generated images": wandb_images}, step=global_step)
+    logger.info(f"Генерация изображений завершена (wandb отключен)")
 
 
 def save_checkpoint(model, config, accelerator, global_step):
     output_dir = config.experiment.output_dir
     checkpoints_total_limit = config.experiment.get("checkpoints_total_limit", None)
+    save_moe_only = config.get("moe", {}).get("save_only_moe_weights", True)  # Новая опция
 
     # _before_ saving state, check if this save would set us over the `checkpoints_total_limit`
     if accelerator.is_main_process and checkpoints_total_limit is not None:
@@ -878,23 +1020,35 @@ def save_checkpoint(model, config, accelerator, global_step):
     # XXX: could also make this conditional on deepspeed
     state_dict = accelerator.get_state_dict(model)
     if accelerator.is_main_process:
-        unwrapped_model = accelerator.unwrap_model(model)
-        unwrapped_model.save_pretrained(
-            save_path / "unwrapped_model",
-            save_function=accelerator.save,
-            state_dict=state_dict,
-            safe_serialization=False
-        )
+        save_path.mkdir(parents=True, exist_ok=True)
+        
+        if save_moe_only and config.get("moe", {}).get("enabled", False):
+            moe_state_dict = {
+                k: v for k, v in state_dict.items() 
+                if 'showo.model.layers' in k and 'mlp' in k
+            }
+            torch.save(moe_state_dict, save_path / "moe_weights.pt")
+            logger.info(f"💾 Saved {len(moe_state_dict)} MoE parameters to {save_path} ({sum(p.numel() for p in moe_state_dict.values()):,} params)")
+        else:
+            unwrapped_model = accelerator.unwrap_model(model)
+            unwrapped_model.save_pretrained(
+                save_path / "unwrapped_model",
+                save_function=accelerator.save,
+                state_dict=state_dict,
+                safe_serialization=False
+            )
+            logger.info(f"Saved full model to {save_path}")
+        
         json.dump({"global_step": global_step}, (save_path / "metadata.json").open("w+"))
-        logger.info(f"Saved state to {save_path}")
 
 
 def log_grad_norm(model, accelerator, global_step):
-    for name, param in model.named_parameters():
-        if param.grad is not None:
-            grads = param.grad.detach().data
-            grad_norm = (grads.norm(p=2) / grads.numel()).item()
-            accelerator.log({"grad_norm/" + name: grad_norm}, step=global_step)
+    if hasattr(accelerator, 'trackers') and len(accelerator.trackers) > 0:
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                grads = param.grad.detach().data
+                grad_norm = (grads.norm(p=2) / grads.numel()).item()
+                accelerator.log({"grad_norm/" + name: grad_norm}, step=global_step)
 
 
 if __name__ == "__main__":

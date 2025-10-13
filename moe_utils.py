@@ -21,9 +21,60 @@ import os
 import mlflow
 from models.phi import PhiMLP, PhiConfig
 from models.moe_gates.gshard_gate import GShardGate
+from collections import defaultdict
+from typing import List, Dict, Optional
 
 
 logger = logging.getLogger(__name__)
+
+# Константы для статистик
+STATS_TYPES = ['max_abs', 'min_abs', 'var']
+
+
+class Stats:
+    """Класс для сбора и хранения статистик активаций"""
+    def __init__(self, device: str = "cpu"):
+        self._lists: Dict[str, List[torch.Tensor]] = {name: [] for name in STATS_TYPES}
+        self.device = device
+
+    def append(self, name: str, tensor: torch.Tensor) -> None:
+        if name not in self._lists:
+            raise KeyError(f"Unknown stat name '{name}'")
+        self._lists[name].append(tensor.detach().to('cpu'))
+
+    def append_many(self, stats: Dict[str, torch.Tensor]) -> None:
+        for k, v in stats.items():
+            if v is None:
+                continue
+            self.append(k, v)
+
+    @torch.no_grad()
+    def collect_from_tensor(self, out: torch.Tensor) -> None:
+        """Собирает статистики из тензора активаций"""
+        max_abs = out.abs().amax(dim=1, keepdim=False)           # (batch_size,)
+        var = out.var(dim=1, unbiased=False, keepdim=False)      # (batch_size,)
+        min_abs = out.abs().amin(dim=1, keepdim=False)   
+        
+        self.append("max_abs", max_abs)
+        self.append("var", var)
+        self.append("min_abs", min_abs)
+
+    def cat(self, name: str) -> Optional[torch.Tensor]:
+        """Объединяет все тензоры для данной статистики"""
+        lst = self._lists.get(name)
+        if not lst:
+            return None
+        return torch.cat(lst, dim=0)
+    
+    def clear(self) -> None:
+        """Очищает все собранные данные"""
+        for k in list(self._lists.keys()):
+            self._lists[k].clear()
+
+    def __repr__(self):
+        s = ", ".join(f"{k}: {len(v)}" for k, v in self._lists.items())
+        return f"Stats({s})"
+
 
 class SmallPhiMLP(nn.Module):
     """Уменьшенный PhiMLP для экспертов MoE"""
@@ -72,7 +123,7 @@ class MoE(nn.Module):
         self._step_count += 1
         
         # Логирование распределения гейтов (только периодически)
-        print(f'step_count: {self._step_count}, log_frequency: {self._log_frequency}')
+        # print(f'step_log_frequency: count: {self._step_count}, {self._log_frequency}')
         should_log = (self._step_count % self._log_frequency == 0)
         if hasattr(self, '_log_gates') and self._log_gates and should_log:
             print(f'logging gates')
@@ -214,7 +265,7 @@ class MoE(nn.Module):
         plt.figure(figsize=(10, 6))
         gate_weights = gate_score.detach().cpu().numpy().flatten()
         plt.hist(gate_weights, bins=50, alpha=0.7, color='blue', edgecolor='black')
-        plt.title(f'Gate Weights Distribution - Layer {self._layer_id}')
+        plt.title(f'Gate Weights Distribution (Overall) - Layer {self._layer_id} - Step {self._global_step}')
         plt.xlabel('Gate Weight Value')
         plt.ylabel('Frequency')
         plt.grid(True, alpha=0.3)
@@ -266,31 +317,34 @@ class MoE(nn.Module):
             client.log_metric(run_id, f"{layer_prefix}/gate_weights_mean", gate_score.mean().item(), step=self._global_step)
             client.log_metric(run_id, f"{layer_prefix}/gate_weights_std", gate_score.std().item(), step=self._global_step)
             
-            # Создаем и отправляем гистограмму
-            histogram_bytes = self._create_gate_histogram(gate_score)
+            # Общая гистограмма весов гейтов удалена - нужны только модальность-специфичные
             
+            # Создаем и отправляем гистограмму активаций экспертов
+            expert_histogram_bytes = self._create_expert_activation_histogram(expert_counts)
             
-            
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                tmp_file.write(histogram_bytes)
-                tmp_file_path = tmp_file.name
-            
-            # Логируем через MLflow client (правильный способ для локального хранилища)
+            # Логируем гистограмму активаций экспертов
             try:
-                # Используем client.log_artifact вместо mlflow.log_artifact
-                client.log_artifact(run_id, tmp_file_path, f"{layer_prefix}/")
-                print(f"📊 Гистограмма отправлена: {layer_prefix}/gate_weights_histogram.png")
+                # Создаем файл с правильным именем
+                temp_dir = tempfile.mkdtemp()
+                tmp_file_path = os.path.join(temp_dir, f"expert_token_counts_step_{self._global_step}.png")
+                
+                with open(tmp_file_path, 'wb') as f:
+                    f.write(expert_histogram_bytes)
+                
+                client.log_artifact(run_id, tmp_file_path, layer_prefix)
+                print(f"📊 Количество токенов по экспертам отправлено: {layer_prefix}/expert_token_counts_step_{self._global_step}.png")
             except Exception as artifact_error:
-                print(f"⚠️ Не удалось отправить через client.log_artifact: {artifact_error}")
+                print(f"⚠️ Не удалось отправить гистограмму экспертов: {artifact_error}")
                 # Fallback: сохраняем локально
                 artifacts_dir = f"./mlruns/artifacts/{layer_prefix}"
                 os.makedirs(artifacts_dir, exist_ok=True)
-                local_path = f"{artifacts_dir}/gate_weights_histogram.png"
+                local_path = f"{artifacts_dir}/expert_activations_histogram_step_{self._global_step}.png"
                 with open(local_path, 'wb') as f:
-                    f.write(histogram_bytes)
-                print(f"📊 Гистограмма сохранена локально: {local_path}")
+                    f.write(expert_histogram_bytes)
+                print(f"📊 Гистограмма экспертов сохранена локально: {local_path}")
             finally:
                 os.unlink(tmp_file_path)
+                os.rmdir(temp_dir)
             
         except Exception as e:
             # Игнорируем ошибки MLflow, чтобы не прерывать обучение
@@ -333,26 +387,57 @@ class MoE(nn.Module):
             histogram_bytes = self._create_modality_histogram(gate_score, modality_name)
             
             # Исправленный способ логирования изображений
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                tmp_file.write(histogram_bytes)
-                tmp_file_path = tmp_file.name
+            # Создаем файл с правильным именем
+            temp_dir = tempfile.mkdtemp()
+            tmp_file_path = os.path.join(temp_dir, f"gate_distribution_{modality_name}_step_{self._global_step}.png")
+            
+            with open(tmp_file_path, 'wb') as f:
+                f.write(histogram_bytes)
             
             # Логируем через MLflow client (правильный способ для локального хранилища)
             try:
-                # Используем client.log_artifact вместо mlflow.log_artifact
-                client.log_artifact(run_id, tmp_file_path, f"{layer_prefix}/")
-                print(f"📊 Гистограмма отправлена: {layer_prefix}/gate_weights_histogram.png")
+                # Используем client.log_artifact с правильным путем (без косой черты в конце)
+                client.log_artifact(run_id, tmp_file_path, layer_prefix)
+                print(f"📊 Распределение гейтов {modality_name} отправлено: {layer_prefix}/gate_distribution_{modality_name}_step_{self._global_step}.png")
             except Exception as artifact_error:
                 print(f"⚠️ Не удалось отправить через client.log_artifact: {artifact_error}")
                 # Fallback: сохраняем локально
                 artifacts_dir = f"./mlruns/artifacts/{layer_prefix}"
                 os.makedirs(artifacts_dir, exist_ok=True)
-                local_path = f"{artifacts_dir}/gate_weights_histogram.png"
+                local_path = f"{artifacts_dir}/gate_weights_histogram_step_{self._global_step}.png"
                 with open(local_path, 'wb') as f:
                     f.write(histogram_bytes)
                 print(f"📊 Гистограмма сохранена локально: {local_path}")
             finally:
                 os.unlink(tmp_file_path)
+                os.rmdir(temp_dir)
+            
+            # Создаем и отправляем гистограмму активаций экспертов для данной модальности
+            expert_histogram_bytes = self._create_expert_activation_histogram(expert_counts)
+            
+            # Логируем гистограмму активаций экспертов для модальности
+            try:
+                # Создаем файл с правильным именем
+                temp_dir = tempfile.mkdtemp()
+                tmp_file_path = os.path.join(temp_dir, f"expert_token_counts_{modality_name}_step_{self._global_step}.png")
+                
+                with open(tmp_file_path, 'wb') as f:
+                    f.write(expert_histogram_bytes)
+                
+                client.log_artifact(run_id, tmp_file_path, layer_prefix)
+                print(f"📊 Количество токенов по экспертам {modality_name} отправлено: {layer_prefix}/expert_token_counts_{modality_name}_step_{self._global_step}.png")
+            except Exception as artifact_error:
+                print(f"⚠️ Не удалось отправить гистограмму экспертов {modality_name}: {artifact_error}")
+                # Fallback: сохраняем локально
+                artifacts_dir = f"./mlruns/artifacts/{layer_prefix}"
+                os.makedirs(artifacts_dir, exist_ok=True)
+                local_path = f"{artifacts_dir}/expert_token_counts_{modality_name}_step_{self._global_step}.png"
+                with open(local_path, 'wb') as f:
+                    f.write(expert_histogram_bytes)
+                print(f"📊 Количество токенов по экспертам {modality_name} сохранено локально: {local_path}")
+            finally:
+                os.unlink(tmp_file_path)
+                os.rmdir(temp_dir)
             
         except Exception as e:
             # Игнорируем ошибки MLflow, чтобы не прерывать обучение
@@ -366,7 +451,7 @@ class MoE(nn.Module):
         gate_weights = gate_score.detach().cpu().numpy().flatten()
         
         plt.hist(gate_weights, bins=50, alpha=0.7, color='blue', edgecolor='black')
-        plt.title(f'Gate Weights Distribution - Layer {self._layer_id} - {modality_name.capitalize()} Tokens')
+        plt.title(f'Gate Distribution - Layer {self._layer_id} - {modality_name.capitalize()} Tokens - Step {self._global_step}')
         plt.xlabel('Gate Weight Value')
         plt.ylabel('Frequency')
         plt.grid(True, alpha=0.3)
@@ -458,6 +543,41 @@ class MoE(nn.Module):
             # Игнорируем ошибки MLflow, чтобы не прерывать обучение
             pass
 
+    def _create_expert_activation_histogram(self, expert_counts):
+        """Создает гистограмму активаций экспертов (количество столбцов = количество экспертов)"""
+        plt.figure(figsize=(10, 6))
+        
+        # Подготавливаем данные для гистограммы
+        experts = list(expert_counts.keys())
+        activations = list(expert_counts.values())
+        
+        # Создаем столбчатую диаграмму
+        bars = plt.bar(experts, activations, alpha=0.7, color='green', edgecolor='black')
+        plt.title(f'Expert Token Counts - Layer {self._layer_id} - Step {self._global_step}')
+        plt.xlabel('Expert ID')
+        plt.ylabel('Number of Activations')
+        plt.grid(True, alpha=0.3)
+        
+        # Добавляем значения на столбцы
+        for bar, count in zip(bars, activations):
+            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
+                    str(count), ha='center', va='bottom')
+        
+        # Добавляем статистики
+        total_activations = sum(activations)
+        balance = max(activations) - min(activations) if activations else 0
+        plt.text(0.02, 0.98, f'Total: {total_activations}\nBalance: {balance}', 
+                transform=plt.gca().transAxes, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+        
+        # Сохраняем в байты
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        buf.seek(0)
+        plt.close()
+        
+        return buf.getvalue()
+
 
 def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2, special_tokens=None):
     """
@@ -487,7 +607,7 @@ def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2,
                 config=config_phi
             )
             # Включаем логирование для MoE слоя (каждые 10 шагов)
-            moe_layer.enable_logging(log_gates=True, log_activations=True, log_frequency=10)
+            moe_layer.enable_logging(log_gates=True, log_activations=True, log_frequency=50)
             moe_layer.set_layer_id(layer_idx)  # Устанавливаем ID слоя
             
             # Устанавливаем специальные токены для определения модальности
@@ -564,10 +684,222 @@ def load_moe_weights(model, path):
     return model
 
 
+def get_activations(recorder, stat: str = "max_abs", layers: list[int] = None):
+    """Получает активации для указанных слоев и статистики"""
+    if stat not in STATS_TYPES:
+        raise ValueError(f"stat must be one of {STATS_TYPES}, got {stat}")
+    if layers is None:
+        layers = list(range(24))
+    layer_names = []
+    acts_list = []
+
+    for ind in layers:
+        layer_name = f"showo.model.layers.{ind}.mlp.fc2"
+        if layer_name not in recorder.outputs:
+            continue
+
+        stats_obj: Stats = recorder.outputs[layer_name]
+        t = stats_obj.cat(stat)
+        if t is None:
+            continue
+
+        t = t.detach().cpu().flatten()
+        if t.numel() == 0:
+            continue
+
+        layer_names.append(layer_name)
+        acts_list.append(t)
+
+    return layer_names, acts_list
+
+
+def create_stats_boxplots(recorder, stat: str = "max_abs", layers: list[int] = None,
+                         figsize=(14,6), showfliers=False):
+    """Создает boxplot для статистик активаций"""
+    layer_names, acts_list = get_activations(recorder, stat=stat, layers=layers)
+
+    if len(acts_list) == 0:
+        print("No activations collected for the requested layers/stat.")
+        return None
+
+    data = [a.numpy() if isinstance(a, torch.Tensor) else np.asarray(a) for a in acts_list]
+    plt.figure(figsize=figsize)
+    labels = [ln.split(".")[3] if len(ln.split(".")) > 3 else ln for ln in layer_names]
+    plt.boxplot(data, labels=labels, showfliers=showfliers)
+    plt.xticks(rotation=45, ha='right')
+    plt.ylabel(stat)
+    plt.title(f"Boxplots of '{stat}' across layers ({len(data)} layers)")
+    plt.tight_layout()
+    
+    # Сохраняем в байты
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    buf.seek(0)
+    plt.close()
+    
+    return buf.getvalue()
+
+
+def create_all_stats_boxplots(recorder, layers: list[int] = None, figsize=(18,6), showfliers=False):
+    """Создает все boxplot'ы для всех статистик"""
+    # Нормализуем в словарь
+    if not isinstance(recorder, dict):
+        recorders = {'': recorder}
+    else:
+        recorders = recorder
+    
+    stats = list(STATS_TYPES)
+    n_stats = len(stats)
+    n_recorders = len(recorders)
+    
+    # 2 строки: boxplots и средние
+    fig, axes = plt.subplots(2, n_stats, figsize=(figsize[0], figsize[1] * 1.5), sharey=False)
+    if n_stats == 1:
+        axes = axes.reshape(-1, 1)
+    
+    colors = plt.cm.Set2(range(n_recorders))
+    
+    for col, stat in enumerate(stats):
+        ax_box = axes[0, col]
+        ax_mean = axes[1, col]
+        
+        # Собираем данные от всех рекордеров
+        recorders_data = {}
+        layer_names_all = None
+        
+        for rec_name, rec in recorders.items():
+            layer_names, acts_list = get_activations(rec, stat=stat, layers=layers)
+            if len(acts_list) == 0:
+                continue
+            
+            if layer_names_all is None:
+                layer_names_all = layer_names
+            
+            data = [a.numpy() if isinstance(a, torch.Tensor) else np.asarray(a) for a in acts_list]
+            recorders_data[rec_name] = data
+        
+        if len(recorders_data) == 0:
+            ax_box.text(0.5, 0.5, f"No data", ha='center', va='center')
+            ax_box.set_title(stat)
+            ax_mean.text(0.5, 0.5, f"No data", ha='center', va='center')
+            continue
+        
+        # === ВЕРХНИЙ РЯД: Boxplots ===
+        n_layers = len(next(iter(recorders_data.values())))
+        width = 0.8 / n_recorders
+        
+        legend_patches = []
+        for i, (rec_name, data) in enumerate(recorders_data.items()):
+            positions = [j + 1 + (i - n_recorders/2 + 0.5) * width for j in range(n_layers)]
+            bp = ax_box.boxplot(data, positions=positions, widths=width*0.9, 
+                               showfliers=showfliers, patch_artist=True)
+            for patch in bp['boxes']:
+                patch.set_facecolor(colors[i])
+            
+            if rec_name:
+                from matplotlib.patches import Patch
+                legend_patches.append(Patch(facecolor=colors[i], label=rec_name))
+        
+        labels = [ln.split(".")[3] if len(ln.split("."))>3 else ln for ln in layer_names_all]
+        ax_box.set_xticks(range(1, n_layers + 1))
+        ax_box.set_xticklabels(labels, rotation=45, ha='right')
+        ax_box.set_title(stat)
+        
+        if len(legend_patches) > 0:
+            ax_box.legend(handles=legend_patches)
+        for i, (rec_name, data) in enumerate(recorders_data.items()):
+            means = [d.mean() for d in data]
+            x = range(1, len(means) + 1)
+            ax_mean.plot(x, means, marker='o', color=colors[i], 
+                        label=rec_name if rec_name else None)
+        
+        ax_mean.set_xticks(range(1, n_layers + 1))
+        ax_mean.set_xticklabels(labels, rotation=45, ha='right')
+        ax_mean.set_ylabel("Mean")
+        ax_mean.grid(True, alpha=0.3)
+        
+        if len(legend_patches) > 0:
+            ax_mean.legend()
+    
+    plt.tight_layout()
+    
+    # Сохраняем в байты
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    buf.seek(0)
+    plt.close()
+    
+    return buf.getvalue()
+
+
+class LayerOutputRecorder:
+    """Рекордер для сбора статистик активаций из слоев модели"""
+    def __init__(self, device='cuda'):
+        self.outputs = defaultdict(lambda: Stats(device=device))
+        self.inputs_shapes = defaultdict(list)
+        self.handles = []
+        self.device = device
+
+    def build_hook_fn(self, name):
+        def hook_fn(module, input_, output):
+            with torch.no_grad():
+                out = output.detach()
+                self.outputs[name].collect_from_tensor(out)
+                self.inputs_shapes[name].append(input_[0].shape)
+        return hook_fn
+
+    def register_hook(self, module_name, module):
+        handle = module.register_forward_hook(self.build_hook_fn(module_name))
+        self.handles.append(handle)
+
+    def register_hooks(self, modules: list[tuple[str, torch.nn.Module]]) -> None:
+        for module_name, module in modules:
+            self.register_hook(module_name, module)
+
+    def remove_hooks(self):
+        for handle in self.handles:
+            handle.remove()
+        self.handles = []
+
+    def clear(self):
+        for stats in self.outputs.values():
+            stats.clear()
+        self.outputs.clear()
+        self.inputs_shapes.clear()
+        torch.cuda.empty_cache()
+
+
+def log_stats_to_mlflow(recorder, mlflow_client, run_id, step, layer_prefix="activations"):
+    """Логирует статистики активаций в MLflow"""
+    try:
+        # Создаем общий график всех статистик
+        all_stats_bytes = create_all_stats_boxplots(recorder)
+        
+        if all_stats_bytes:
+            # Сохраняем временный файл
+            temp_dir = tempfile.mkdtemp()
+            tmp_file_path = os.path.join(temp_dir, f"all_stats_step_{step}.png")
+            
+            with open(tmp_file_path, 'wb') as f:
+                f.write(all_stats_bytes)
+            
+            # Логируем в MLflow
+            mlflow_client.log_artifact(run_id, tmp_file_path, layer_prefix)
+            print(f"📊 Статистики активаций отправлены: {layer_prefix}/all_stats_step_{step}.png")
+            
+            # Очищаем временный файл
+            os.unlink(tmp_file_path)
+            os.rmdir(temp_dir)
+            
+    except Exception as e:
+        print(f"❌ Ошибка логирования статистик: {e}")
+
+
 if __name__ == "__main__":
     from models import Showo
     model = Showo.from_pretrained("showlab/show-o-w-clip-vit")
     model = patch_and_freeze_moe(model, num_experts=4, top_k=2)
+
     print("\nГотово! Теперь можно обучать.")
     print("Пример:")
     print("  optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=1e-4)")
