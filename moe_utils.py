@@ -77,17 +77,17 @@ class Stats:
 
 
 class SmallPhiMLP(nn.Module):
-    """Уменьшенный PhiMLP для экспертов MoE"""
-    def __init__(self, config: PhiConfig, scale_factor: int = 4):
+    """PhiMLP для экспертов MoE (теперь полного размера)"""
+    def __init__(self, config: PhiConfig, scale_factor: int = 1):
         super().__init__()
         self.config = config
-        small_intermediate_size = config.intermediate_size // scale_factor
+        intermediate_size = config.intermediate_size // scale_factor
         if config.hidden_act == "gelu_new":
             self.activation_fn = torch.nn.functional.gelu
         else:
             self.activation_fn = getattr(torch.nn.functional, config.hidden_act)
-        self.fc1 = nn.Linear(config.hidden_size, small_intermediate_size)
-        self.fc2 = nn.Linear(small_intermediate_size, config.hidden_size)
+        self.fc1 = nn.Linear(config.hidden_size, intermediate_size)
+        self.fc2 = nn.Linear(intermediate_size, config.hidden_size)
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         hidden_states = self.fc1(hidden_states)
@@ -104,10 +104,10 @@ class MoE(nn.Module):
         self.num_experts = num_experts
         self.hidden_size = hidden_size
         self.top_k = top_k
-        self.experts = nn.ModuleList([SmallPhiMLP(config, scale_factor=4) for _ in range(self.num_experts)])
+        self.experts = nn.ModuleList([SmallPhiMLP(config, scale_factor=1) for _ in range(self.num_experts)])
         self.alpha = nn.Parameter(torch.randn(self.num_experts))
         self._step_count = 0
-        self._log_frequency = 10  # Логируем каждые 10 шагов
+        self._log_frequency = 100  # Логируем каждые 10 шагов
         self._global_step = 0  # Глобальный шаг для MLflow
         self._layer_id = None  # ID слоя для уникального логирования
 
@@ -123,10 +123,8 @@ class MoE(nn.Module):
         self._step_count += 1
         
         # Логирование распределения гейтов (только периодически)
-        # print(f'step_log_frequency: count: {self._step_count}, {self._log_frequency}')
         should_log = (self._step_count % self._log_frequency == 0)
         if hasattr(self, '_log_gates') and self._log_gates and should_log:
-            print(f'logging gates')
             self._log_gate_distribution(gate_idx, gate_score, input_ids)
         
         output_flat = torch.zeros_like(hidden_states_flat)  # используем zeros_like вместо zeros
@@ -224,7 +222,7 @@ class MoE(nn.Module):
     def _log_activation_stats(self, expert_stats):
         self._log_to_mlflow_activations(expert_stats)
 
-    def enable_logging(self, log_gates=True, log_activations=True, log_frequency=10):
+    def enable_logging(self, log_gates=True, log_activations=True, log_frequency=100):
         self._log_gates = log_gates
         self._log_activations = log_activations
         self._log_frequency = log_frequency
@@ -351,97 +349,54 @@ class MoE(nn.Module):
             print(f"❌ Ошибка логирования гистограммы: {e}")
     
     def _log_to_mlflow_modality_gates(self, expert_counts, total_activations, gate_score, modality_name):
-        """Логирует метрики гейтов для конкретной модальности в MLflow"""
-        import tempfile
-        import os
-        import mlflow
+        if hasattr(self, '_mlflow_client') and hasattr(self, '_mlflow_run_id'):
+            client = self._mlflow_client
+            run_id = self._mlflow_run_id
+        else:
+            from mlflow.tracking import MlflowClient
+            
+            # Получаем текущий run_id
+            run_id = mlflow.active_run().info.run_id if mlflow.active_run() else None
+            if run_id is None:
+                return
+            
+            client = MlflowClient()
         
-        try:
-            # Используем переданный client или создаем новый
-            if hasattr(self, '_mlflow_client') and hasattr(self, '_mlflow_run_id'):
-                client = self._mlflow_client
-                run_id = self._mlflow_run_id
-            else:
-                from mlflow.tracking import MlflowClient
-                
-                # Получаем текущий run_id
-                run_id = mlflow.active_run().info.run_id if mlflow.active_run() else None
-                if run_id is None:
-                    return
-                
-                client = MlflowClient()
-            
-            # Логируем метрики для конкретной модальности
-            layer_prefix = f"moe/layer_{self._layer_id}/{modality_name}"
-            
-            # Агрегированная статистика экспертов для данной модальности
-            expert_balance = max(expert_counts.values()) - min(expert_counts.values()) if expert_counts else 0
-            client.log_metric(run_id, f"{layer_prefix}/expert_balance", expert_balance, step=self._global_step)
-            client.log_metric(run_id, f"{layer_prefix}/total_activations", total_activations, step=self._global_step)
-            
-            # Статистика весов для данной модальности
-            client.log_metric(run_id, f"{layer_prefix}/gate_weights_mean", gate_score.mean().item(), step=self._global_step)
-            client.log_metric(run_id, f"{layer_prefix}/gate_weights_std", gate_score.std().item(), step=self._global_step)
-            
-            # Создаем и отправляем гистограмму для данной модальности
-            histogram_bytes = self._create_modality_histogram(gate_score, modality_name)
-            
-            # Исправленный способ логирования изображений
-            # Создаем файл с правильным именем
-            temp_dir = tempfile.mkdtemp()
-            tmp_file_path = os.path.join(temp_dir, f"gate_distribution_{modality_name}_step_{self._global_step}.png")
-            
-            with open(tmp_file_path, 'wb') as f:
-                f.write(histogram_bytes)
-            
-            # Логируем через MLflow client (правильный способ для локального хранилища)
-            try:
-                # Используем client.log_artifact с правильным путем (без косой черты в конце)
-                client.log_artifact(run_id, tmp_file_path, layer_prefix)
-                print(f"📊 Распределение гейтов {modality_name} отправлено: {layer_prefix}/gate_distribution_{modality_name}_step_{self._global_step}.png")
-            except Exception as artifact_error:
-                print(f"⚠️ Не удалось отправить через client.log_artifact: {artifact_error}")
-                # Fallback: сохраняем локально
-                artifacts_dir = f"./mlruns/artifacts/{layer_prefix}"
-                os.makedirs(artifacts_dir, exist_ok=True)
-                local_path = f"{artifacts_dir}/gate_weights_histogram_step_{self._global_step}.png"
-                with open(local_path, 'wb') as f:
-                    f.write(histogram_bytes)
-                print(f"📊 Гистограмма сохранена локально: {local_path}")
-            finally:
-                os.unlink(tmp_file_path)
-                os.rmdir(temp_dir)
-            
-            # Создаем и отправляем гистограмму активаций экспертов для данной модальности
-            expert_histogram_bytes = self._create_expert_activation_histogram(expert_counts)
-            
-            # Логируем гистограмму активаций экспертов для модальности
-            try:
-                # Создаем файл с правильным именем
-                temp_dir = tempfile.mkdtemp()
-                tmp_file_path = os.path.join(temp_dir, f"expert_token_counts_{modality_name}_step_{self._global_step}.png")
-                
-                with open(tmp_file_path, 'wb') as f:
-                    f.write(expert_histogram_bytes)
-                
-                client.log_artifact(run_id, tmp_file_path, layer_prefix)
-                print(f"📊 Количество токенов по экспертам {modality_name} отправлено: {layer_prefix}/expert_token_counts_{modality_name}_step_{self._global_step}.png")
-            except Exception as artifact_error:
-                print(f"⚠️ Не удалось отправить гистограмму экспертов {modality_name}: {artifact_error}")
-                # Fallback: сохраняем локально
-                artifacts_dir = f"./mlruns/artifacts/{layer_prefix}"
-                os.makedirs(artifacts_dir, exist_ok=True)
-                local_path = f"{artifacts_dir}/expert_token_counts_{modality_name}_step_{self._global_step}.png"
-                with open(local_path, 'wb') as f:
-                    f.write(expert_histogram_bytes)
-                print(f"📊 Количество токенов по экспертам {modality_name} сохранено локально: {local_path}")
-            finally:
-                os.unlink(tmp_file_path)
-                os.rmdir(temp_dir)
-            
-        except Exception as e:
-            # Игнорируем ошибки MLflow, чтобы не прерывать обучение
-            print(f"❌ Ошибка логирования гистограммы модальности: {e}")
+        # Логируем метрики для конкретной модальности
+        layer_prefix = f"moe/layer_{self._layer_id}/{modality_name}"
+        
+        # Агрегированная статистика экспертов для данной модальности
+        expert_balance = max(expert_counts.values()) - min(expert_counts.values()) if expert_counts else 0
+        client.log_metric(run_id, f"{layer_prefix}/expert_balance", expert_balance, step=self._global_step)
+        client.log_metric(run_id, f"{layer_prefix}/total_activations", total_activations, step=self._global_step)
+        
+        # Статистика весов для данной модальности
+        client.log_metric(run_id, f"{layer_prefix}/gate_weights_mean", gate_score.mean().item(), step=self._global_step)
+        client.log_metric(run_id, f"{layer_prefix}/gate_weights_std", gate_score.std().item(), step=self._global_step)
+        
+        # Создаем и отправляем гистограмму для данной модальности
+        histogram_bytes = self._create_modality_histogram(gate_score, modality_name)
+        
+        # Исправленный способ логирования изображений
+        # Создаем файл с правильным именем
+        temp_dir = tempfile.mkdtemp()
+        tmp_file_path = os.path.join(temp_dir, f"gate_distribution_{modality_name}_step_{self._global_step}.png")
+        
+        with open(tmp_file_path, 'wb') as f:
+            f.write(histogram_bytes)
+        
+        client.log_artifact(run_id, tmp_file_path, layer_prefix)
+        print(f"📊 Распределение гейтов {modality_name} отправлено: {layer_prefix}/gate_distribution_{modality_name}_step_{self._global_step}.png")
+        expert_histogram_bytes = self._create_expert_activation_histogram(expert_counts)
+        emp_dir = tempfile.mkdtemp()
+        tmp_file_path = os.path.join(temp_dir, f"expert_token_counts_{modality_name}_step_{self._global_step}.png")
+        
+        with open(tmp_file_path, 'wb') as f:
+            f.write(expert_histogram_bytes)
+        
+        client.log_artifact(run_id, tmp_file_path, layer_prefix)
+        print(f"📊 Количество токенов по экспертам {modality_name} отправлено: {layer_prefix}/expert_token_counts_{modality_name}_step_{self._global_step}.png")
+    
     
     def _create_modality_histogram(self, gate_score, modality_name):
         """Создает гистограмму распределения гейтов для конкретной модальности"""
@@ -580,18 +535,6 @@ class MoE(nn.Module):
 
 
 def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2, special_tokens=None):
-    """
-    Заменяет все MLP слои на MoE
-    
-    Args:
-        model: Show-o модель
-        num_experts: количество экспертов
-        top_k: сколько активных экспертов
-        special_tokens: словарь с ID специальных токенов
-    
-    Returns:
-        model с MoE слоями
-    """
     print(f"🔧 Патчим модель с MoE (experts={num_experts}, top_k={top_k})...")
     config_phi = model.showo.config
     
@@ -600,15 +543,37 @@ def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2,
             break
         if hasattr(layer, 'mlp'):
             print(f"  → Слой {layer_idx}")
+            original_mlp = layer.mlp
+            
             moe_layer = MoE(
                 num_experts=num_experts,
                 hidden_size=config_phi.hidden_size,
                 top_k=top_k,
                 config=config_phi
             )
-            # Включаем логирование для MoE слоя (каждые 10 шагов)
-            moe_layer.enable_logging(log_gates=True, log_activations=True, log_frequency=50)
-            moe_layer.set_layer_id(layer_idx)  # Устанавливаем ID слоя
+            
+            # Инициализируем веса экспертов из оригинального FFN с небольшим шумом
+            print(f"    Копируем веса из оригинального FFN в {num_experts} экспертов с шумом...")
+            for expert_idx, expert in enumerate(moe_layer.experts):
+                with torch.no_grad():
+                    # Копируем fc1
+                    expert.fc1.weight.copy_(original_mlp.fc1.weight)
+                    expert.fc1.bias.copy_(original_mlp.fc1.bias)
+                    # Добавляем небольшой шум (0.1% от стандартного отклонения весов)
+                    noise_scale = 0.001
+                    expert.fc1.weight.add_(torch.randn_like(expert.fc1.weight) * expert.fc1.weight.std() * noise_scale)
+                    expert.fc1.bias.add_(torch.randn_like(expert.fc1.bias) * expert.fc1.bias.std() * noise_scale)
+                    
+                    # Копируем fc2
+                    expert.fc2.weight.copy_(original_mlp.fc2.weight)
+                    expert.fc2.bias.copy_(original_mlp.fc2.bias)
+                    # Добавляем небольшой шум
+                    expert.fc2.weight.add_(torch.randn_like(expert.fc2.weight) * expert.fc2.weight.std() * noise_scale)
+                    expert.fc2.bias.add_(torch.randn_like(expert.fc2.bias) * expert.fc2.bias.std() * noise_scale)
+            
+            # Включаем логирование для MoE слоя
+            moe_layer.enable_logging(log_gates=True, log_activations=True, log_frequency=100)
+            moe_layer.set_layer_id(layer_idx)
             
             # Устанавливаем специальные токены для определения модальности
             if special_tokens is not None:
@@ -627,32 +592,56 @@ def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2,
 
 
 def freeze_non_moe_params(model):
-    print("❄️  Замораживаем все параметры кроме MoE...")
+    print("❄️  Замораживаем все параметры кроме суффикса с MoE...")
 
+    # Сначала заморозим всё
     for param in model.parameters():
         param.requires_grad = False
     
-    # Размораживаем только MoE
+    # Найдем минимальный индекс слоя с MoE
+    min_moe_layer = None
+    for name, param in model.named_parameters():
+        if 'showo.model.layers' in name and any(x in name for x in ['mlp.experts', 'mlp.gate', 'mlp.alpha']):
+            # Извлекаем номер слоя из имени типа "showo.model.layers.21.mlp..."
+            import re
+            match = re.search(r'layers\.(\d+)\.', name)
+            if match:
+                layer_idx = int(match.group(1))
+                if min_moe_layer is None or layer_idx < min_moe_layer:
+                    min_moe_layer = layer_idx
+    
+    if min_moe_layer is None:
+        print("⚠️  MoE слои не найдены")
+        return model
+    
+    print(f"🔥 Размораживаем все слои начиная с {min_moe_layer} (первый MoE слой)")
+    
+    # Размораживаем весь суффикс начиная с первого MoE слоя
     trainable_params = 0
     total_params = 0
-    moe_param_names = []
+    trainable_param_names = []
     
     for name, param in model.named_parameters():
         total_params += param.numel()
-        # Проверяем что это MoE параметры (есть experts, gate, alpha - специфичные для MoE)
-        if 'showo.model.layers' in name and 'mlp' in name:
-            if any(x in name for x in ['mlp.experts', 'mlp.gate', 'mlp.alpha']):
-                param.requires_grad = True
-                trainable_params += param.numel()
-                moe_param_names.append(name)
+        
+        # Проверяем, относится ли параметр к слоям >= min_moe_layer
+        if 'showo.model.layers' in name:
+            import re
+            match = re.search(r'layers\.(\d+)\.', name)
+            if match:
+                layer_idx = int(match.group(1))
+                if layer_idx >= min_moe_layer:
+                    param.requires_grad = True
+                    trainable_params += param.numel()
+                    trainable_param_names.append(name)
     
     print(f"✓ Параметров: {total_params:,} total, {trainable_params:,} trainable ({100*trainable_params/total_params:.1f}%)")
-    if len(moe_param_names) > 0:
-        print(f"✓ Разморожено {len(moe_param_names)} MoE параметров:")
-        for name in moe_param_names[:5]:  # показываем первые 5
+    if len(trainable_param_names) > 0:
+        print(f"✓ Разморожено {len(trainable_param_names)} параметров в суффиксе (слои {min_moe_layer}+):")
+        for name in trainable_param_names[:5]:  # показываем первые 5
             print(f"    - {name}")
-        if len(moe_param_names) > 5:
-            print(f"    ... и еще {len(moe_param_names) - 5}")
+        if len(trainable_param_names) > 5:
+            print(f"    ... и еще {len(trainable_param_names) - 5}")
     return model
 
 

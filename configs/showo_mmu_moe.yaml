@@ -1,0 +1,104 @@
+mlflow:
+    enabled: true
+    tracking_uri: "file:./mlruns"
+    experiment_name: "moe-training"
+    tags:
+        model: "show-o"
+        task: "mmu"
+        moe_experts: "8"
+
+experiment:
+    project: "moe-training"
+    name: "showo-moe-mmu"
+    output_dir: "output/showo-moe-mmu"
+    max_train_examples_t2i: 20000000
+    max_train_examples_mmu: 40000000
+    save_every: 3000
+    eval_every: 2500
+    generate_every: 100
+    log_every: 10
+    log_grad_norm_every: 500
+    resume_from_checkpoint: 'latest'
+
+moe:
+    enabled: true
+    num_experts: 8
+    top_k: 2
+    save_only_moe_weights: true
+    activation_stats:
+        collect_frequency: 5
+
+model:
+    vq_model:
+        type: "magvitv2"
+        vq_model_name: "showlab/magvitv2"
+
+    showo:
+        load_from_showo: True
+        pretrained_model_path: "showlab/show-o"
+        w_clip_vit: False
+        vocab_size: 58498
+        llm_vocab_size: 50295
+        llm_model_path: 'microsoft/phi-1_5'
+        codebook_size: 8192
+        num_vq_tokens: 1024
+        num_new_special_tokens: 10
+
+    gradient_checkpointing: True
+
+dataset:
+    gen_type: "imagenet1k"
+    und_type: "llava_pretrain"
+    combined_loader_mode: "min_size"
+    add_system_prompt: False
+    params:
+        train_t2i_shards_path_or_url: "/home/jovyan/vasiliev/notebooks/Show-o/data/llava_pretrain/images"  # dummy, не используется (coeff=0)
+        train_lm_shards_path_or_url: "/home/jovyan/vasiliev/notebooks/Show-o/data/llava_pretrain"  # dummy, не используется (coeff=0)
+        validation_prompts_file: "validation_prompts/text2image_prompts.txt"
+        num_workers: 8
+        shuffle_buffer_size: 1000
+        pin_memory: True
+        persistent_workers: True
+    preprocessing:
+        max_seq_length: 512
+        resolution: 256
+
+optimizer:
+    name: adamw
+    params: # default adamw params
+        learning_rate: 0.00002
+        scale_lr: False # scale learning rate by total batch size
+        beta1: 0.9
+        beta2: 0.999
+        weight_decay: 0.01
+        epsilon: 1e-8
+
+lr_scheduler:
+    scheduler: "cosine"
+    params:
+        learning_rate: ${optimizer.params.learning_rate}
+        warmup_steps: 1000
+
+training:
+    gradient_accumulation_steps: 1
+    noise_type: "mask"
+    batch_size_t2i: 10
+    batch_size_lm: 4
+    batch_size_mmu: 10
+    mixed_precision: "bf16"
+    enable_tf32: True
+    seed: 10086
+    max_train_steps: 7000
+    overfit_one_batch: False
+    cond_dropout_prob: 0.1
+    min_masking_rate: 0.0
+    label_smoothing: 0.0
+    max_grad_norm: null
+    guidance_scale: 0.0
+    generation_timesteps: 12
+    t2i_coeff: 1.0
+    lm_coeff: 0.0
+    mmu_coeff: 1.0       # только MMU!
+
+    balance_coeff: 0.01
+
