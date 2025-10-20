@@ -38,7 +38,7 @@ from models.lr_schedulers import get_scheduler
 from models.logger import set_verbosity_info, set_verbosity_error
 from moe_utils import patch_and_freeze_moe  # MoE support
 from training.eval_utils import (visualize_predictions, generate_images, log_grad_norm, 
-                                 collect_and_log_moe_activations, log_training_metrics)
+                                 collect_and_log_moe_activations, log_training_metrics, evaluate_mmu)
 from training.dataset_utils import create_dataloaders
 from training.checkpoint_utils import save_checkpoint
 
@@ -202,11 +202,16 @@ def train_step(
     avg_loss_lm = accelerator.gather(loss_lm.repeat(config.training.batch_size_lm)).mean()
     avg_loss_mmu = accelerator.gather(loss_mmu.repeat(config.training.batch_size_mmu)).mean()
     
-    balance_loss = collect_moe_balance_losses(model)
+    balance_loss, num_moe_layers = collect_moe_balance_losses(model)
+    if num_moe_layers == 0:
+        raise Exception(f"Num moe layers = {num_moe_layers}")
     balance_coeff = config.training.get("balance_coeff", 0.01)
     
+    # loss = config.training.t2i_coeff * loss_t2i + \
+    #        config.training.lm_coeff * loss_lm + \
+    #        config.training.mmu_coeff * loss_mmu + \
+    #        balance_coeff * balance_loss
     loss = config.training.t2i_coeff * loss_t2i + \
-           config.training.lm_coeff * loss_lm + \
            config.training.mmu_coeff * loss_mmu + \
            balance_coeff * balance_loss
 
@@ -231,7 +236,7 @@ def train_step(
             and (global_step + 1) % config.experiment.log_grad_norm_every == 0
             and accelerator.is_main_process
     ):
-        log_grad_norm(model, accelerator, global_step + 1)
+        log_grad_norm(model, accelerator, global_step + 1, mlflow_client, mlflow_run_id)
 
     optimizer.zero_grad(set_to_none=True)
     
@@ -270,10 +275,15 @@ def train_step(
 
     if accelerator.is_main_process and pbar is not None:
         pbar.update(1)
+        all_lrs = lr_scheduler.get_last_lr()
+        if len(all_lrs) >= 4:
+            lr_str = f'moe={all_lrs[0]:.2e}/base={all_lrs[2]:.2e}'
+        else:
+            lr_str = f'{all_lrs[0]:.2e}'
         pbar.set_postfix({
             'loss_mmu': f'{avg_loss_mmu.item():.4f}',
             'loss_t2i': f'{avg_loss_t2i.item():.4f}',
-            'lr': f'{lr_scheduler.get_last_lr()[0]:.2e}',
+            'lr': lr_str,
         })
 
     return {
@@ -311,7 +321,7 @@ def collect_moe_balance_losses(model):
                     total_balance_loss += gate_loss
                     num_moe_layers += 1
                     logger.debug(f"MoE layer {layer_idx}: balance_loss = {gate_loss.item():.6f}")
-    return total_balance_loss
+    return total_balance_loss, num_moe_layers
 
 
 def get_vq_model_class(model_type):
@@ -336,12 +346,16 @@ def main():
         torch.backends.cudnn.deterministic = False
 
     config.experiment.logging_dir = str(Path(config.experiment.output_dir) / "logs")
+    from accelerate.utils import DistributedDataParallelKwargs
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    
     accelerator = Accelerator(
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,
         mixed_precision=config.training.mixed_precision,
         log_with="mlflow" if config.get("mlflow", {}).get("enabled", False) else None,  # MLflow вместо wandb
         project_dir=config.experiment.logging_dir,
         split_batches=True,
+        kwargs_handlers=[ddp_kwargs],
     )
 
     total_batch_size_per_gpu = (config.training.batch_size_t2i
@@ -468,8 +482,8 @@ def main():
         
         model = patch_and_freeze_moe(
             model, 
-            num_experts=config.moe.get("num_experts", 4), 
-            top_k=config.moe.get("top_k", 2),
+            num_experts=config.moe["num_experts"], 
+            top_k=config.moe["top_k"],
             mlflow_client=mlflow_client,
             mlflow_run_id=mlflow_run_id,
             special_tokens=special_tokens
@@ -484,26 +498,68 @@ def main():
 
     # no decay on bias and layernorm and embedding
     no_decay = ["bias", "layer_norm.weight", "mlm_ln.weight", "embeddings.weight"]
+    
+    # Разделяем параметры на MoE и non-MoE с разными learning rates
+    moe_lr = optimizer_config.get("moe_learning_rate", optimizer_config.learning_rate)
+    base_lr = optimizer_config.learning_rate
+    
+    moe_params_decay = []
+    moe_params_no_decay = []
+    base_params_decay = []
+    base_params_no_decay = []
+    
+    for n, p in model.named_parameters():
+        if not p.requires_grad:
+            continue
+        
+        is_moe = any(x in n for x in ['mlp.experts', 'mlp.gate', 'mlp.alpha'])
+        has_no_decay = any(nd in n for nd in no_decay)
+        
+        if is_moe:
+            if has_no_decay:
+                moe_params_no_decay.append(p)
+            else:
+                moe_params_decay.append(p)
+        else:
+            if has_no_decay:
+                base_params_no_decay.append(p)
+            else:
+                base_params_decay.append(p)
+    
     optimizer_grouped_parameters = [
         {
-            "params": [p for n, p in model.named_parameters() if
-                       p.requires_grad and not any(nd in n for nd in no_decay)],
+            "params": moe_params_decay,
             "weight_decay": optimizer_config.weight_decay,
+            "lr": moe_lr,
         },
         {
-            "params": [p for n, p in model.named_parameters() if
-                       p.requires_grad and any(nd in n for nd in no_decay)],
+            "params": moe_params_no_decay,
             "weight_decay": 0.0,
+            "lr": moe_lr,
+        },
+        {
+            "params": base_params_decay,
+            "weight_decay": optimizer_config.weight_decay,
+            "lr": base_lr,
+        },
+        {
+            "params": base_params_no_decay,
+            "weight_decay": 0.0,
+            "lr": base_lr,
         },
     ]
+    
+    logger.info(f"Optimizer groups:")
+    logger.info(f"  MoE params (decay): {len(moe_params_decay)} tensors, lr={moe_lr}")
+    logger.info(f"  MoE params (no decay): {len(moe_params_no_decay)} tensors, lr={moe_lr}")
+    logger.info(f"  Base params (decay): {len(base_params_decay)} tensors, lr={base_lr}")
+    logger.info(f"  Base params (no decay): {len(base_params_no_decay)} tensors, lr={base_lr}")
 
     optimizer_type = config.optimizer.name
     if optimizer_type == "adamw":
         optimizer = AdamW(
             optimizer_grouped_parameters,
-            lr=optimizer_config.learning_rate,
             betas=(optimizer_config.beta1, optimizer_config.beta2),
-            weight_decay=optimizer_config.weight_decay,
             eps=optimizer_config.epsilon,
         )
     else:
@@ -696,6 +752,18 @@ def main():
                         batch["t2i_flow"]["images"],
                         texts,
                         logits,
+                        mlflow_client=mlflow_client,
+                        mlflow_run_id=mlflow_run_id,
+                    )
+                    
+                    evaluate_mmu(
+                        model,
+                        vq_model,
+                        uni_prompting,
+                        accelerator,
+                        config,
+                        global_step + 1,
+                        batch["mmu_flow"],
                         mlflow_client=mlflow_client,
                         mlflow_run_id=mlflow_run_id,
                     )

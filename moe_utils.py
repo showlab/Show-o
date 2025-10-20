@@ -20,6 +20,9 @@ import tempfile
 import os
 import mlflow
 from models.phi import PhiMLP, PhiConfig
+from models.moe_gates.naive_gate import NaiveGate
+from models.moe_gates.switch_gate import SwitchGate
+from models.moe_gates.faster_gate import FasterGate
 from models.moe_gates.gshard_gate import GShardGate
 from collections import defaultdict
 from typing import List, Dict, Optional
@@ -98,12 +101,15 @@ class SmallPhiMLP(nn.Module):
 
 class MoE(nn.Module):
     """Mixture of Experts слой"""
-    def __init__(self, num_experts, hidden_size, top_k, config: PhiConfig):
+    def __init__(self, num_experts, hidden_size, top_k, config: PhiConfig, gate_temperature=1.0):
         super().__init__()
-        self.gate = GShardGate(hidden_size, num_experts, 1, top_k)
+        # from models.moe_gates.naive_gate import NaiveGate
+        # self.gate = NaiveGate(hidden_size, num_experts, 1, top_k=top_k, gate_bias=True)
+        self.gate = GShardGate(hidden_size, num_experts, world_size=4, top_k=top_k, gate_bias=True)
         self.num_experts = num_experts
         self.hidden_size = hidden_size
         self.top_k = top_k
+        self.gate_temperature = gate_temperature  # Температура для softmax gate
         self.experts = nn.ModuleList([SmallPhiMLP(config, scale_factor=1) for _ in range(self.num_experts)])
         self.alpha = nn.Parameter(torch.randn(self.num_experts))
         self._step_count = 0
@@ -119,7 +125,10 @@ class MoE(nn.Module):
     def forward(self, hidden_states, input_ids=None):
         batch_size, seq_len, hidden_size = hidden_states.shape
         hidden_states_flat = hidden_states.view(-1, hidden_size)
+        
+        # Вызываем gate (работает с любым типом gate)
         gate_idx, gate_score = self.gate(hidden_states_flat)
+        
         self._step_count += 1
         
         # Логирование распределения гейтов (только периодически)
@@ -127,7 +136,7 @@ class MoE(nn.Module):
         if hasattr(self, '_log_gates') and self._log_gates and should_log:
             self._log_gate_distribution(gate_idx, gate_score, input_ids)
         
-        output_flat = torch.zeros_like(hidden_states_flat)  # используем zeros_like вместо zeros
+        output_flat = torch.zeros_like(hidden_states_flat)
         expert_stats = {}
         
         for k in range(self.top_k):
@@ -164,12 +173,10 @@ class MoE(nn.Module):
                             'alpha': self.alpha[expert_id].item(),
                             'num_tokens': mask.sum().item()
                         }
-                    del expert_input, expert_output, weight
         if hasattr(self, '_log_activations') and self._log_activations and should_log and expert_stats:
             self._log_activation_stats(expert_stats)
         
         result = output_flat.view(batch_size, seq_len, hidden_size)
-        del output_flat, hidden_states_flat, gate_idx, gate_score
         return result
 
     def _log_gate_distribution(self, gate_idx, gate_score, input_ids=None):
@@ -549,7 +556,8 @@ def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2,
                 num_experts=num_experts,
                 hidden_size=config_phi.hidden_size,
                 top_k=top_k,
-                config=config_phi
+                config=config_phi,
+                gate_temperature=2.0  # Увеличена температура для более равномерного распределения
             )
             
             # Инициализируем веса экспертов из оригинального FFN с небольшим шумом
@@ -559,15 +567,16 @@ def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2,
                     # Копируем fc1
                     expert.fc1.weight.copy_(original_mlp.fc1.weight)
                     expert.fc1.bias.copy_(original_mlp.fc1.bias)
-                    # Добавляем небольшой шум (0.1% от стандартного отклонения весов)
-                    noise_scale = 0.001
+                    # Добавляем шум (5% от стандартного отклонения весов)
+                    # Увеличен с 0.001 до 0.05 для лучшей диверсификации экспертов
+                    noise_scale = 0.1
                     expert.fc1.weight.add_(torch.randn_like(expert.fc1.weight) * expert.fc1.weight.std() * noise_scale)
                     expert.fc1.bias.add_(torch.randn_like(expert.fc1.bias) * expert.fc1.bias.std() * noise_scale)
                     
                     # Копируем fc2
                     expert.fc2.weight.copy_(original_mlp.fc2.weight)
                     expert.fc2.bias.copy_(original_mlp.fc2.bias)
-                    # Добавляем небольшой шум
+                    # Добавляем шум
                     expert.fc2.weight.add_(torch.randn_like(expert.fc2.weight) * expert.fc2.weight.std() * noise_scale)
                     expert.fc2.bias.add_(torch.randn_like(expert.fc2.bias) * expert.fc2.bias.std() * noise_scale)
             

@@ -9,7 +9,7 @@ from PIL import Image
 from accelerate.logging import get_logger
 from PIL import ImageDraw, ImageFont
 
-from training.prompting_utils import create_attention_mask_predict_next
+from training.prompting_utils import create_attention_mask_predict_next, create_attention_mask_for_mmu
 from moe_utils import LayerOutputRecorder, log_stats_to_mlflow
 from mlflow.tracking import MlflowClient
 
@@ -225,13 +225,227 @@ def generate_images(
     logger.info(f"🎨 Сгенерированные изображения отправлены в MLflow: generated_images/")
 
 
-def log_grad_norm(model, accelerator, global_step):
+@torch.no_grad()
+def evaluate_mmu(
+        model,
+        vq_model,
+        uni_prompting,
+        accelerator,
+        config,
+        global_step,
+        batch_mmu,
+        mlflow_client=None,
+        mlflow_run_id=None,
+):
+    logger.info("Generating captions for MMU evaluation...")
+    model.eval()
+
+    num_samples = min(4, batch_mmu["images"].shape[0])
+    pixel_values_mmu = batch_mmu["images"][:num_samples].to(accelerator.device)
+    labels_mmu = batch_mmu["labels"][:num_samples]
+    
+    ground_truth_texts = []
+    for label_seq in labels_mmu:
+        valid_tokens = label_seq[label_seq != -100]
+        gt_text = uni_prompting.text_tokenizer.decode(valid_tokens, skip_special_tokens=True)
+        ground_truth_texts.append(gt_text)
+    
+    image_tokens_mmu = vq_model.get_code(pixel_values_mmu)
+    image_tokens_mmu = image_tokens_mmu + len(uni_prompting.text_tokenizer)
+    
+    if accelerator.mixed_precision == "fp16":
+        weight_dtype = torch.float16
+    elif accelerator.mixed_precision == "bf16":
+        weight_dtype = torch.bfloat16
+    else:
+        weight_dtype = torch.float32
+    
+    if hasattr(model, 'module'):
+        mask_dtype = model.module.showo.model.embed_tokens.weight.dtype
+    else:
+        mask_dtype = accelerator.unwrap_model(model).showo.model.embed_tokens.weight.dtype
+
+    generated_texts = []
+    with torch.autocast("cuda", dtype=weight_dtype, enabled=accelerator.mixed_precision != "no"):
+        for i in range(num_samples):
+            input_ids_single = torch.cat([
+                (torch.ones(1, 1) * uni_prompting.sptids_dict['<|mmu|>']).to(accelerator.device),
+                (torch.ones(1, 1) * uni_prompting.sptids_dict['<|soi|>']).to(accelerator.device),
+                image_tokens_mmu[i:i+1],
+                (torch.ones(1, 1) * uni_prompting.sptids_dict['<|eoi|>']).to(accelerator.device),
+            ], dim=1).long()
+            
+            attention_mask_single = create_attention_mask_for_mmu(
+                input_ids_single,
+                eoi_id=int(uni_prompting.sptids_dict['<|eoi|>'])
+            ).to(mask_dtype)
+            
+            generated_ids = accelerator.unwrap_model(model).mmu_generate(
+                idx=input_ids_single,
+                attention_mask=attention_mask_single,
+                max_new_tokens=config.training.get("mmu_max_new_tokens", 128),
+                temperature=config.training.get("mmu_temperature", 0.7),
+                top_k=config.training.get("mmu_top_k", None),
+                eot_token=int(uni_prompting.sptids_dict['<|endoftext|>']) if '<|endoftext|>' in uni_prompting.sptids_dict else None,
+            )
+            
+            generated_text = uni_prompting.text_tokenizer.decode(
+                generated_ids, 
+                skip_special_tokens=True
+            )
+            generated_texts.append(generated_text)
+    
+    images = torch.clamp((pixel_values_mmu + 1.0) / 2.0, min=0.0, max=1.0)
+    images *= 255.0
+    images = images.permute(0, 2, 3, 1).cpu().numpy().astype(np.uint8)
+    
+    captioned_images = []
+    for img, gt_text, gen_text in zip(images, ground_truth_texts, generated_texts):
+        pil_img = Image.fromarray(img)
+        img_width, img_height = pil_img.size
+        text_height = 80
+        new_img = Image.new('RGB', (img_width, img_height + text_height), (255, 255, 255))
+        new_img.paste(pil_img, (0, 0))
+        draw = ImageDraw.Draw(new_img)
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12)
+        except:
+            font = ImageFont.load_default()
+        
+        gt_text_str = gt_text[:80] + "..." if len(gt_text) > 80 else gt_text
+        gen_text_str = gen_text[:80] + "..." if len(gen_text) > 80 else gen_text
+        
+        draw.text((5, img_height + 5), f"GT: {gt_text_str}", fill=(0, 100, 0), font=font)
+        draw.text((5, img_height + 25), f"Gen: {gen_text_str}", fill=(0, 0, 200), font=font)
+        captioned_images.append(new_img)
+    
+    filenames = [f"mmu_eval_{i}_step_{global_step}.png" for i in range(len(captioned_images))]
+    log_images_to_mlflow(captioned_images, filenames, "mmu_evaluations", mlflow_client, mlflow_run_id)
+    
+    logger.info(f"📝 MMU evaluation отправлен в MLflow: mmu_evaluations/")
+    
+    for i, (gt, gen) in enumerate(zip(ground_truth_texts, generated_texts)):
+        logger.info(f"  Example {i}: GT='{gt[:50]}...' | Gen='{gen[:50]}...'")
+    
+    model.train()
+
+
+def log_grad_norm(model, accelerator, global_step, mlflow_client=None, mlflow_run_id=None):
+    import torch
+    from collections import defaultdict
+    import re
+    
+    layer_grad_norms = defaultdict(list)
+    layer_param_norms = defaultdict(dict)
+    moe_grad_norms = []
+    base_grad_norms = []
+    embedding_grad_norms = []
+    other_grad_norms = []
+    
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            grads = param.grad.detach().data
+            grad_norm = (grads.norm(p=2) / grads.numel()).item()
+            
+            # Классификация параметров
+            is_moe = any(x in name for x in ['mlp.experts', 'mlp.gate', 'mlp.alpha'])
+            is_embedding = 'embed' in name.lower()
+            
+            # Извлекаем информацию о слое и типе параметра
+            match = re.search(r'layers\.(\d+)\.', name)
+            layer_idx = int(match.group(1)) if match else None
+            
+            # Определяем тип параметра для детального логирования
+            param_type = None
+            if 'self_attn.q_proj' in name:
+                param_type = 'q_proj'
+            elif 'self_attn.k_proj' in name:
+                param_type = 'k_proj'
+            elif 'self_attn.v_proj' in name:
+                param_type = 'v_proj'
+            elif 'self_attn.dense' in name:
+                param_type = 'attn_dense'
+            elif 'mlp.experts' in name:
+                expert_match = re.search(r'experts\.(\d+)\.', name)
+                if expert_match:
+                    expert_id = expert_match.group(1)
+                    param_type = f'expert_{expert_id}'
+            elif 'mlp.gate' in name:
+                param_type = 'moe_gate'
+            elif 'mlp.alpha' in name:
+                param_type = 'moe_alpha'
+            elif 'input_layernorm' in name:
+                param_type = 'input_layernorm'
+            elif 'post_attention_layernorm' in name:
+                param_type = 'post_attn_layernorm'
+            
+            if is_moe:
+                moe_grad_norms.append(grad_norm)
+                if layer_idx is not None:
+                    layer_grad_norms[f'layer_{layer_idx}_moe'].append(grad_norm)
+                    if param_type:
+                        layer_param_norms[layer_idx][f'moe_{param_type}'] = grad_norm
+            elif is_embedding:
+                embedding_grad_norms.append(grad_norm)
+            elif 'showo.model.layers' in name:
+                base_grad_norms.append(grad_norm)
+                if layer_idx is not None:
+                    layer_grad_norms[f'layer_{layer_idx}_base'].append(grad_norm)
+                    if param_type:
+                        layer_param_norms[layer_idx][param_type] = grad_norm
+            else:
+                other_grad_norms.append(grad_norm)
+    
+    # Агрегированные статистики
+    metrics = {}
+    
+    if moe_grad_norms:
+        metrics['grad_norm/moe_mean'] = sum(moe_grad_norms) / len(moe_grad_norms)
+        metrics['grad_norm/moe_max'] = max(moe_grad_norms)
+        metrics['grad_norm/moe_min'] = min(moe_grad_norms)
+    
+    if base_grad_norms:
+        metrics['grad_norm/base_mean'] = sum(base_grad_norms) / len(base_grad_norms)
+        metrics['grad_norm/base_max'] = max(base_grad_norms)
+        metrics['grad_norm/base_min'] = min(base_grad_norms)
+    
+    if embedding_grad_norms:
+        metrics['grad_norm/embedding_mean'] = sum(embedding_grad_norms) / len(embedding_grad_norms)
+    
+    if other_grad_norms:
+        metrics['grad_norm/other_mean'] = sum(other_grad_norms) / len(other_grad_norms)
+    
+    # Статистики по слоям (агрегированные)
+    for layer_name, norms in layer_grad_norms.items():
+        if norms:
+            metrics[f'grad_norm/{layer_name}_mean'] = sum(norms) / len(norms)
+    
+    # Детальные статистики по каждому типу параметра в каждом слое
+    for layer_idx, param_dict in layer_param_norms.items():
+        for param_name, grad_value in param_dict.items():
+            metrics[f'grad_norm/layer_{layer_idx}/{param_name}'] = grad_value
+    
+    # Логирование
+    if mlflow_client is not None and mlflow_run_id is not None:
+        for metric_name, metric_value in metrics.items():
+            mlflow_client.log_metric(mlflow_run_id, metric_name, metric_value, step=global_step)
+    
     if hasattr(accelerator, 'trackers') and len(accelerator.trackers) > 0:
-        for name, param in model.named_parameters():
-            if param.grad is not None:
-                grads = param.grad.detach().data
-                grad_norm = (grads.norm(p=2) / grads.numel()).item()
-                accelerator.log({"grad_norm/" + name: grad_norm}, step=global_step)
+        accelerator.log(metrics, step=global_step)
+    
+    logger.info(f"📊 Gradient norms at step {global_step}:")
+    if moe_grad_norms:
+        logger.info(f"   MoE: mean={metrics.get('grad_norm/moe_mean', 0):.6f}, max={metrics.get('grad_norm/moe_max', 0):.6f}")
+    if base_grad_norms:
+        logger.info(f"   Base: mean={metrics.get('grad_norm/base_mean', 0):.6f}, max={metrics.get('grad_norm/base_max', 0):.6f}")
+    
+    # Логируем детали для нескольких слоев
+    sample_layers = sorted(layer_param_norms.keys())[:3]  # Первые 3 слоя
+    if sample_layers:
+        logger.info(f"   Sample layers {sample_layers}:")
+        for layer_idx in sample_layers:
+            params_info = ", ".join([f"{k}={v:.6f}" for k, v in sorted(layer_param_norms[layer_idx].items())[:4]])
+            logger.info(f"      Layer {layer_idx}: {params_info}")
 
 
 def log_training_metrics(
@@ -251,24 +465,41 @@ def log_training_metrics(
         logger=None,
 ):
     """Логирует метрики обучения в MLflow и консоль."""
+    all_lrs = lr_scheduler.get_last_lr()
+    
     logs = {
         "step_loss_t2i": avg_loss_t2i.item(),
         "step_loss_mmu": avg_loss_mmu.item(),
         "step_loss_lm": avg_loss_lm.item(),
         "step_loss_balance": balance_loss.item(),
         "balance_coeff": balance_coeff,
-        "lr": lr_scheduler.get_last_lr()[0],
         "avg_masking_rate": avg_masking_rate.item(),
         "samples/sec/gpu": samples_per_second_per_gpu,
         "data_time": data_time_m.val,
         "batch_time": batch_time_m.val,
     }
     
+    # Логируем все learning rates
+    for idx, lr_val in enumerate(all_lrs):
+        logs[f"lr_group_{idx}"] = lr_val
+    
+    # Предполагаем, что группы 0,1 - MoE, 2,3 - base
+    if len(all_lrs) >= 4:
+        logs["lr_moe"] = all_lrs[0]  # MoE с decay
+        logs["lr_base"] = all_lrs[2]  # Base с decay
+    else:
+        logs["lr"] = all_lrs[0]
+    
     if mlflow_client is not None and mlflow_run_id is not None:
         for metric_name, metric_value in logs.items():
             mlflow_client.log_metric(mlflow_run_id, metric_name, metric_value, step=global_step)
     
     if logger is not None:
+        if len(all_lrs) >= 4:
+            lr_info = f"LR_moe: {all_lrs[0]:0.6f} LR_base: {all_lrs[2]:0.6f}"
+        else:
+            lr_info = f"LR: {all_lrs[0]:0.6f}"
+        
         logger.info(
             f"Step: {global_step} "
             f"Loss_t2i: {avg_loss_t2i.item():0.4f} "
@@ -277,7 +508,7 @@ def log_training_metrics(
             f"Loss_balance: {balance_loss.item():0.6f} "
             f"Data (t): {data_time_m.val:0.4f}, {samples_per_second_per_gpu:0.2f}/s/gpu "
             f"Batch (t): {batch_time_m.val:0.4f} "
-            f"LR: {lr_scheduler.get_last_lr()[0]:0.6f}"
+            f"{lr_info}"
         )
 
 
