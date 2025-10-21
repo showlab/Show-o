@@ -26,7 +26,7 @@ from typing import List, Optional, Union
 
 from PIL import Image
 
-Image.warnings.simplefilter('error', Image.DecompressionBombWarning)
+Image.warnings.simplefilter("error", Image.DecompressionBombWarning)
 
 import webdataset as wds
 import yaml
@@ -59,7 +59,9 @@ def filter_keys(key_set):
     return _f
 
 
-def group_by_keys_nothrow(data, keys=base_plus_ext, lcase=True, suffixes=None, handler=None):
+def group_by_keys_nothrow(
+    data, keys=base_plus_ext, lcase=True, suffixes=None, handler=None
+):
     """Return function over iterator that groups key, value pairs into samples.
 
     :param keys: function that splits the key into key and extension (base_plus_ext)
@@ -77,7 +79,11 @@ def group_by_keys_nothrow(data, keys=base_plus_ext, lcase=True, suffixes=None, h
         # FIXME webdataset version throws if suffix in current_sample, but we have a potential for
         #  this happening in the current LAION400m dataset if a tar ends with same prefix as the next
         #  begins, rare, but can happen since prefix aren't unique across tar files in that dataset
-        if current_sample is None or prefix != current_sample["__key__"] or suffix in current_sample:
+        if (
+            current_sample is None
+            or prefix != current_sample["__key__"]
+            or suffix in current_sample
+        ):
             if valid_sample(current_sample):
                 yield current_sample
             current_sample = dict(__key__=prefix, __url__=filesample["__url__"])
@@ -97,49 +103,63 @@ def tarfile_to_samples_nothrow(src, handler=wds.warn_and_continue):
 
 def image_transform(sample, resolution=256):
     image = sample["images"]
-    image = transforms.Resize(resolution, interpolation=transforms.InterpolationMode.BICUBIC)(image)
+    image = transforms.Resize(
+        resolution, interpolation=transforms.InterpolationMode.BICUBIC
+    )(image)
     image = transforms.CenterCrop((resolution, resolution))(image)
     image = transforms.ToTensor()(image)
-    image = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)(image)
+    image = transforms.Normalize(
+        mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True
+    )(image)
     sample["images"] = image
     return sample
 
 
 def remove_prefix(caption):
-    caption = caption.replace('The image features ', '').replace('The image presents ', '').replace(
-        "The image you've sent is, ", '').replace("In the center of the image, ", '').replace(
-        "The image showcases ", '').replace("The image is ", '').replace(
-        "The image captures ", '').replace("In the given image ", '').replace(
-        "The image portrays ", '').replace("In the image, ", '').replace("In this image, we see ", '').replace(
-        "The image depicts ", '').replace("This is ", '').replace("In this image, ", '').replace(
-        "This image captures ", '')
+    caption = (
+        caption.replace("The image features ", "")
+        .replace("The image presents ", "")
+        .replace("The image you've sent is, ", "")
+        .replace("In the center of the image, ", "")
+        .replace("The image showcases ", "")
+        .replace("The image is ", "")
+        .replace("The image captures ", "")
+        .replace("In the given image ", "")
+        .replace("The image portrays ", "")
+        .replace("In the image, ", "")
+        .replace("In this image, we see ", "")
+        .replace("The image depicts ", "")
+        .replace("This is ", "")
+        .replace("In this image, ", "")
+        .replace("This image captures ", "")
+    )
 
     return caption
 
 
 class Text2ImageDataset:
     def __init__(
-            self,
-            train_shards_path_or_url: Union[str, List[str]],
-            tokenizer: PreTrainedTokenizer,
-            max_seq_length: int,
-            num_train_examples: int,
-            per_gpu_batch_size: int,
-            global_batch_size: int,
-            num_workers: int,
-            resolution: int = 256,
-            shuffle_buffer_size: int = 1000,
-            pin_memory: bool = False,
-            persistent_workers: bool = False,
-            external_caption_path: Optional[str] = '',
-            external_journeydb_caption_path: Optional[str] = '',
-            external_laion12m_caption_path: Optional[str] = '',
-            external_cc12m_caption_path: Optional[str] = '',
-            is_captioning: bool = False,
-            add_caption_prompt: bool = False,
-            long_caption: bool = True,
+        self,
+        train_shards_path_or_url: Union[str, List[str]],
+        tokenizer: PreTrainedTokenizer,
+        max_seq_length: int,
+        num_train_examples: int,
+        per_gpu_batch_size: int,
+        global_batch_size: int,
+        num_workers: int,
+        resolution: int = 256,
+        shuffle_buffer_size: int = 1000,
+        pin_memory: bool = False,
+        persistent_workers: bool = False,
+        external_caption_path: Optional[str] = "",
+        external_journeydb_caption_path: Optional[str] = "",
+        external_laion12m_caption_path: Optional[str] = "",
+        external_cc12m_caption_path: Optional[str] = "",
+        is_captioning: bool = False,
+        add_caption_prompt: bool = False,
+        long_caption: bool = True,
     ):
-        if f"{train_shards_path_or_url}.yaml" in os.listdir('./configs'):
+        if f"{train_shards_path_or_url}.yaml" in os.listdir("./configs"):
             with open(f"./configs/{train_shards_path_or_url}.yaml") as f:
                 train_shards_path_or_url = yaml.safe_load(f)
         self.long_caption = long_caption
@@ -152,11 +172,14 @@ class Text2ImageDataset:
         if self.add_caption_prompt:
             with open("./training/questions.json") as f:
                 self.caption_prompt = json.load(f)
-                self.caption_prompt = ['USER: \n' + prompt + ' ASSISTANT:' for prompt in self.caption_prompt]
+                self.caption_prompt = [
+                    "USER: \n" + prompt + " ASSISTANT:"
+                    for prompt in self.caption_prompt
+                ]
         else:
             self.caption_prompt = None
 
-        if external_journeydb_caption_path != '':
+        if external_journeydb_caption_path != "":
             with open(external_journeydb_caption_path) as file:
                 self.journeydb_caption = json.load(file)
         else:
@@ -166,18 +189,26 @@ class Text2ImageDataset:
             if tokenizer is not None:
                 text = replace_person_token(text)
                 input_ids = tokenizer(
-                    text, max_length=max_seq_length, padding="max_length", truncation=True, return_tensors="pt"
+                    text,
+                    max_length=max_seq_length,
+                    padding="max_length",
+                    truncation=True,
+                    return_tensors="pt",
                 ).input_ids
                 return input_ids[0]
             else:
                 return text
 
         if not isinstance(train_shards_path_or_url, str):
-            train_shards_path_or_url = [list(braceexpand(urls)) for urls in train_shards_path_or_url]
+            train_shards_path_or_url = [
+                list(braceexpand(urls)) for urls in train_shards_path_or_url
+            ]
             # flatten list using itertools
-            train_shards_path_or_url = list(itertools.chain.from_iterable(train_shards_path_or_url))
+            train_shards_path_or_url = list(
+                itertools.chain.from_iterable(train_shards_path_or_url)
+            )
 
-        if external_caption_path != '':
+        if external_caption_path != "":
             processing_pipeline = [
                 wds.decode("pil", handler=wds.ignore_and_continue),
                 wds.map(self.load_external_caption, handler=wds.ignore_and_continue),
@@ -187,7 +218,10 @@ class Text2ImageDataset:
                     handler=wds.warn_and_continue,
                 ),
                 wds.map(filter_keys(set(["images", "input_ids"]))),
-                wds.map(partial(image_transform, resolution=resolution), handler=wds.warn_and_continue),
+                wds.map(
+                    partial(image_transform, resolution=resolution),
+                    handler=wds.warn_and_continue,
+                ),
                 wds.map_dict(
                     input_ids=tokenize,
                     handler=wds.warn_and_continue,
@@ -202,7 +236,10 @@ class Text2ImageDataset:
                     handler=wds.warn_and_continue,
                 ),
                 wds.map(filter_keys(set(["images", "input_ids"]))),
-                wds.map(partial(image_transform, resolution=resolution), handler=wds.warn_and_continue),
+                wds.map(
+                    partial(image_transform, resolution=resolution),
+                    handler=wds.warn_and_continue,
+                ),
                 wds.map_dict(
                     input_ids=tokenize,
                     handler=wds.warn_and_continue,
@@ -214,11 +251,15 @@ class Text2ImageDataset:
             tarfile_to_samples_nothrow,
             wds.shuffle(shuffle_buffer_size),
             *processing_pipeline,
-            wds.batched(per_gpu_batch_size, partial=False, collation_fn=default_collate),
+            wds.batched(
+                per_gpu_batch_size, partial=False, collation_fn=default_collate
+            ),
         ]
 
         num_batches = math.ceil(num_train_examples / global_batch_size)
-        num_worker_batches = math.ceil(num_train_examples / (global_batch_size * num_workers))  # per dataloader worker
+        num_worker_batches = math.ceil(
+            num_train_examples / (global_batch_size * num_workers)
+        )  # per dataloader worker
         num_batches = num_worker_batches * num_workers
         num_samples = num_batches * global_batch_size
 
@@ -239,15 +280,16 @@ class Text2ImageDataset:
         self._train_dataloader.num_samples = num_samples
 
     def load_external_caption(self, sample):
+        if "txt" not in sample.keys():
+            sample["txt"] = ""
 
-        if 'txt' not in sample.keys():
-            sample['txt'] = ''
-
-        if 'SA1B' in sample['__key__']:
-            captionf = f"{self.external_caption_path}/{sample['__key__'].split('/')[-1]}.txt"
+        if "SA1B" in sample["__key__"]:
+            captionf = (
+                f"{self.external_caption_path}/{sample['__key__'].split('/')[-1]}.txt"
+            )
             if os.path.exists(captionf):
                 with open(captionf, "r") as reader:
-                    captions = reader.readlines()[0].replace('\n', '')
+                    captions = reader.readlines()[0].replace("\n", "")
             else:
                 captions = ""
 
@@ -255,26 +297,26 @@ class Text2ImageDataset:
             if self.is_captioning:
                 if self.add_caption_prompt is not None:
                     prompt = random.sample(self.caption_prompt, 1)[0]
-                    sample['txt'] = prompt + ' ' + captions
+                    sample["txt"] = prompt + " " + captions
                 else:
-                    sample['txt'] = captions
+                    sample["txt"] = captions
             # for generation
             else:
                 # randomly choose short and long captions
                 if random.random() < 0.5:
-                    sample['txt'] = captions.split('.')[0]
+                    sample["txt"] = captions.split(".")[0]
                 else:
-                    sample['txt'] = captions
+                    sample["txt"] = captions
 
-                sample['txt'] = remove_prefix(sample['txt'])
+                sample["txt"] = remove_prefix(sample["txt"])
 
             return sample
 
-        elif 'laion' in sample['__url__']:
+        elif "laion" in sample["__url__"]:
             captionf = f"{self.external_laion12m_caption_path}/{sample['__url__'].split('/')[-1].split('.')[0]}/{sample['__key__']}.caption"
             if os.path.exists(captionf):
                 with open(captionf, "r") as reader:
-                    captions = reader.readlines()[0].replace('\n', '')
+                    captions = reader.readlines()[0].replace("\n", "")
             else:
                 captions = ""
 
@@ -282,26 +324,26 @@ class Text2ImageDataset:
             if self.is_captioning:
                 if self.add_caption_prompt is not None:
                     prompt = random.sample(self.caption_prompt, 1)[0]
-                    sample['txt'] = prompt + ' ' + captions
+                    sample["txt"] = prompt + " " + captions
                 else:
-                    sample['txt'] = captions
+                    sample["txt"] = captions
             # for generation
             else:
                 # randomly choose short and long captions
                 if random.random() < 0.5:
-                    sample['txt'] = captions.split('.')[0]
+                    sample["txt"] = captions.split(".")[0]
                 else:
-                    sample['txt'] = captions
+                    sample["txt"] = captions
 
-                sample['txt'] = remove_prefix(sample['txt'])
+                sample["txt"] = remove_prefix(sample["txt"])
 
             return sample
 
-        elif 'cc12m' in sample['__url__']:
+        elif "cc12m" in sample["__url__"]:
             captionf = f"{self.external_cc12m_caption_path}/{sample['__url__'].split('/')[-1].split('.')[0]}/{sample['__key__'].split('/')[-1]}.caption"
             if os.path.exists(captionf):
                 with open(captionf, "r") as reader:
-                    captions = reader.readlines()[0].replace('\n', '')
+                    captions = reader.readlines()[0].replace("\n", "")
             else:
                 captions = ""
 
@@ -309,22 +351,27 @@ class Text2ImageDataset:
             if self.is_captioning:
                 if self.add_caption_prompt is not None:
                     prompt = random.sample(self.caption_prompt, 1)[0]
-                    sample['txt'] = prompt + ' ' + captions
+                    sample["txt"] = prompt + " " + captions
                 else:
-                    sample['txt'] = captions
+                    sample["txt"] = captions
             # for generation
             else:
                 # randomly choose short and long captions
                 if random.random() < 0.5:
-                    sample['txt'] = captions.split('.')[0]
+                    sample["txt"] = captions.split(".")[0]
                 else:
-                    sample['txt'] = captions
-                sample['txt'] = remove_prefix(sample['txt'])
+                    sample["txt"] = captions
+                sample["txt"] = remove_prefix(sample["txt"])
 
             return sample
 
-        elif self.journeydb_caption is not None and sample['__key__'] in self.journeydb_caption:
-            sample['txt'] = random.sample(self.journeydb_caption[sample['__key__']], 1)[0]
+        elif (
+            self.journeydb_caption is not None
+            and sample["__key__"] in self.journeydb_caption
+        ):
+            sample["txt"] = random.sample(self.journeydb_caption[sample["__key__"]], 1)[
+                0
+            ]
             return sample
 
         else:
@@ -339,5 +386,5 @@ class Text2ImageDataset:
         return self._train_dataloader
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass

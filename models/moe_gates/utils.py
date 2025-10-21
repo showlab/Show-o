@@ -105,7 +105,7 @@ def limit_by_capacity(topk_idx, num_expert, world_size, capacity):
 
 def prune_gate_by_capacity(gate, capacity, num_expert, world_size):
     """
-    Prune gate assignments that exceed expert capacity.
+    Prune gate assignments that exceed expert capacity (VECTORIZED VERSION).
     Tokens that exceed capacity are marked with -1.
     
     Args:
@@ -122,19 +122,40 @@ def prune_gate_by_capacity(gate, capacity, num_expert, world_size):
         gate_flat = gate.contiguous().view(-1)
         pruned_gate = gate_flat.clone()
         
-        # Count how many tokens we've assigned to each expert so far
-        expert_count = torch.zeros(num_expert * world_size, 
-                                   device=gate.device, dtype=torch.int32)
+        # Filter valid expert IDs (>= 0)
+        valid_mask = gate_flat >= 0
+        valid_gates = gate_flat[valid_mask]
         
-        # Go through each token and check if expert has capacity
-        for i in range(len(gate_flat)):
-            expert_id = gate_flat[i].item()
-            if expert_id >= 0:  # Valid expert ID
-                if expert_count[expert_id] < capacity[expert_id]:
-                    expert_count[expert_id] += 1
-                else:
-                    # Exceeded capacity, drop this token
-                    pruned_gate[i] = -1
+        if valid_gates.numel() == 0:
+            return pruned_gate.view(original_shape)
+        
+        # Sort by expert ID to process sequentially
+        sorted_gates, sorted_indices = torch.sort(valid_gates)
+        
+        # Count cumulative tokens per expert
+        # For each token, compute how many tokens with same expert came before it
+        expert_changes = torch.cat([
+            torch.tensor([True], device=gate.device),
+            sorted_gates[1:] != sorted_gates[:-1]
+        ])
+        expert_ids_unique = sorted_gates[expert_changes]
+        expert_cumsum = torch.cumsum(expert_changes.long(), dim=0) - 1
+        
+        # Count position within each expert's allocation
+        expert_positions = torch.zeros_like(sorted_gates)
+        for i, expert_id in enumerate(expert_ids_unique):
+            expert_mask = sorted_gates == expert_id
+            expert_positions[expert_mask] = torch.arange(
+                expert_mask.sum(), device=gate.device, dtype=torch.long
+            )
+        
+        # Check which tokens exceed capacity
+        exceeds_capacity = expert_positions >= capacity[sorted_gates]
+        
+        # Map back to original positions
+        original_valid_indices = torch.where(valid_mask)[0]
+        drop_indices = original_valid_indices[sorted_indices[exceeds_capacity]]
+        pruned_gate[drop_indices] = -1
         
         # Restore original shape
         pruned_gate = pruned_gate.view(original_shape)

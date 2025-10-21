@@ -18,7 +18,7 @@ experiment:
     generate_every: 200
     log_every: 50
     log_grad_norm_every: 50
-    resume_from_checkpoint: 'latest'
+    resume_from_checkpoint: "latest"
 
 moe:
     enabled: true
@@ -39,7 +39,7 @@ model:
         w_clip_vit: False
         vocab_size: 58498
         llm_vocab_size: 50295
-        llm_model_path: 'microsoft/phi-1_5'
+        llm_model_path: "microsoft/phi-1_5"
         codebook_size: 8192
         num_vq_tokens: 1024
         num_new_special_tokens: 10
@@ -52,8 +52,8 @@ dataset:
     combined_loader_mode: "min_size"
     add_system_prompt: False
     params:
-        train_t2i_shards_path_or_url: "/home/jovyan/vasiliev/notebooks/Show-o/data/llava_pretrain/images"  # dummy, не используется (coeff=0)
-        train_lm_shards_path_or_url: "/home/jovyan/vasiliev/notebooks/Show-o/data/llava_pretrain"  # dummy, не используется (coeff=0)
+        train_t2i_shards_path_or_url: "/home/jovyan/vasiliev/notebooks/Show-o/data/llava_pretrain/images" # dummy, не используется (coeff=0)
+        train_lm_shards_path_or_url: "/home/jovyan/vasiliev/notebooks/Show-o/data/llava_pretrain" # dummy, не используется (coeff=0)
         validation_prompts_file: "validation_prompts/text2image_prompts.txt"
         num_workers: 8
         shuffle_buffer_size: 1000
@@ -67,7 +67,7 @@ optimizer:
     name: adamw
     params: # default adamw params
         learning_rate: 0.000001
-        moe_learning_rate: 0.00001  # отдельный lr для MoE слоев
+        moe_learning_rate: 0.00001 # отдельный lr для MoE слоев
         scale_lr: False # scale learning rate by total batch size
         beta1: 0.9
         beta2: 0.999
@@ -101,5 +101,4 @@ training:
     lm_coeff: 0.0
     mmu_coeff: 1.0
 
-    balance_coeff: 1.0
-
+    balance_coeff: 10.0

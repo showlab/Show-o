@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from typing import Any, List, Tuple, Union
+from torch.optim import AdamW
 
 
 ##################################################
@@ -21,10 +22,15 @@ def flatten_omega_conf(cfg: Any, resolve: bool = False) -> List[Tuple[str, Any]]
     ret = []
 
     def handle_dict(key: Any, value: Any, resolve: bool) -> List[Tuple[str, Any]]:
-        return [(f"{key}.{k1}", v1) for k1, v1 in flatten_omega_conf(value, resolve=resolve)]
+        return [
+            (f"{key}.{k1}", v1) for k1, v1 in flatten_omega_conf(value, resolve=resolve)
+        ]
 
     def handle_list(key: Any, value: Any, resolve: bool) -> List[Tuple[str, Any]]:
-        return [(f"{key}.{idx}", v1) for idx, v1 in flatten_omega_conf(value, resolve=resolve)]
+        return [
+            (f"{key}.{idx}", v1)
+            for idx, v1 in flatten_omega_conf(value, resolve=resolve)
+        ]
 
     if isinstance(cfg, DictConfig):
         for k, v in cfg.items_ex(resolve=resolve):
@@ -74,7 +80,9 @@ def get_loss_weight(t, mask, min_val=0.3):
     return 1 - (1 - mask) * ((1 - t) * (1 - min_val))[:, None]
 
 
-def mask_or_random_replace_tokens(image_tokens, mask_id, config, mask_schedule, is_train=True):
+def mask_or_random_replace_tokens(
+    image_tokens, mask_id, config, mask_schedule, is_train=True
+):
     batch_size, seq_len = image_tokens.shape
 
     if not is_train and config.training.get("eval_mask_ratios", None):
@@ -90,7 +98,9 @@ def mask_or_random_replace_tokens(image_tokens, mask_id, config, mask_schedule, 
     # creat a random mask for each image
     num_token_masked = (seq_len * mask_prob).round().clamp(min=1)
 
-    mask_contiguous_region_prob = config.training.get("mask_contiguous_region_prob", None)
+    mask_contiguous_region_prob = config.training.get(
+        "mask_contiguous_region_prob", None
+    )
 
     if mask_contiguous_region_prob is None:
         mask_contiguous_region = False
@@ -98,11 +108,15 @@ def mask_or_random_replace_tokens(image_tokens, mask_id, config, mask_schedule, 
         mask_contiguous_region = random.random() < mask_contiguous_region_prob
 
     if not mask_contiguous_region:
-        batch_randperm = torch.rand(batch_size, seq_len, device=image_tokens.device).argsort(dim=-1)
+        batch_randperm = torch.rand(
+            batch_size, seq_len, device=image_tokens.device
+        ).argsort(dim=-1)
         mask = batch_randperm < num_token_masked.unsqueeze(-1)
     else:
-        resolution = int(seq_len ** 0.5)
-        mask = torch.zeros((batch_size, resolution, resolution), device=image_tokens.device)
+        resolution = int(seq_len**0.5)
+        mask = torch.zeros(
+            (batch_size, resolution, resolution), device=image_tokens.device
+        )
 
         # TODO - would be nice to vectorize
         for batch_idx, num_token_masked_ in enumerate(num_token_masked):
@@ -110,20 +124,23 @@ def mask_or_random_replace_tokens(image_tokens, mask_id, config, mask_schedule, 
 
             # NOTE: a bit handwavy with the bounds but gets a rectangle of ~num_token_masked_
             num_token_masked_height = random.randint(
-                math.ceil(num_token_masked_ / resolution), min(resolution, num_token_masked_)
+                math.ceil(num_token_masked_ / resolution),
+                min(resolution, num_token_masked_),
             )
             num_token_masked_height = min(num_token_masked_height, resolution)
 
-            num_token_masked_width = math.ceil(num_token_masked_ / num_token_masked_height)
+            num_token_masked_width = math.ceil(
+                num_token_masked_ / num_token_masked_height
+            )
             num_token_masked_width = min(num_token_masked_width, resolution)
 
             start_idx_height = random.randint(0, resolution - num_token_masked_height)
             start_idx_width = random.randint(0, resolution - num_token_masked_width)
 
             mask[
-            batch_idx,
-            start_idx_height: start_idx_height + num_token_masked_height,
-            start_idx_width: start_idx_width + num_token_masked_width,
+                batch_idx,
+                start_idx_height : start_idx_height + num_token_masked_height,
+                start_idx_width : start_idx_width + num_token_masked_width,
             ] = 1
 
         mask = mask.reshape(batch_size, seq_len)
@@ -135,15 +152,18 @@ def mask_or_random_replace_tokens(image_tokens, mask_id, config, mask_schedule, 
     elif config.training.get("noise_type", "random_replace"):
         # sample random tokens from the vocabulary
         random_tokens = torch.randint_like(
-            image_tokens, low=0, high=config.model.codebook_size, device=image_tokens.device
+            image_tokens,
+            low=0,
+            high=config.model.codebook_size,
+            device=image_tokens.device,
         )
         input_ids = torch.where(mask, random_tokens, image_tokens)
     else:
         raise ValueError(f"noise_type {config.training.noise_type} not supported")
 
     if (
-            config.training.get("predict_all_tokens", False)
-            or config.training.get("noise_type", "mask") == "random_replace"
+        config.training.get("predict_all_tokens", False)
+        or config.training.get("noise_type", "mask") == "random_replace"
     ):
         labels = image_tokens
         loss_weight = get_loss_weight(mask_prob, mask.long())
@@ -175,11 +195,95 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
+
 from torchvision import transforms
+
+
 def image_transform(image, resolution=256, normalize=True):
-    image = transforms.Resize(resolution, interpolation=transforms.InterpolationMode.BICUBIC)(image)
+    image = transforms.Resize(
+        resolution, interpolation=transforms.InterpolationMode.BICUBIC
+    )(image)
     image = transforms.CenterCrop((resolution, resolution))(image)
     image = transforms.ToTensor()(image)
     if normalize:
-        image = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)(image)
+        image = transforms.Normalize(
+            mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True
+        )(image)
     return image
+
+
+def get_optimizer(optimizer_config, named_parameters, logger):
+    no_decay = ["bias", "layer_norm.weight", "mlm_ln.weight", "embeddings.weight"]
+    optimizer_params = optimizer_config.params
+    optimizer_type = optimizer_config.name
+    moe_lr = optimizer_params.get("moe_learning_rate", optimizer_params.learning_rate)
+    base_lr = optimizer_params.learning_rate
+
+    moe_params_decay = []
+    moe_params_no_decay = []
+    base_params_decay = []
+    base_params_no_decay = []
+
+    for n, p in named_parameters:
+        if not p.requires_grad:
+            continue
+
+        is_moe = any(x in n for x in ["mlp.experts", "mlp.gate", "mlp.alpha"])
+        has_no_decay = any(nd in n for nd in no_decay)
+
+        if is_moe:
+            if has_no_decay:
+                moe_params_no_decay.append(p)
+            else:
+                moe_params_decay.append(p)
+        else:
+            if has_no_decay:
+                base_params_no_decay.append(p)
+            else:
+                base_params_decay.append(p)
+
+    optimizer_grouped_parameters = [
+        {
+            "params": moe_params_decay,
+            "weight_decay": optimizer_params.weight_decay,
+            "lr": moe_lr,
+        },
+        {
+            "params": moe_params_no_decay,
+            "weight_decay": 0.0,
+            "lr": moe_lr,
+        },
+        {
+            "params": base_params_decay,
+            "weight_decay": optimizer_params.weight_decay,
+            "lr": base_lr,
+        },
+        {
+            "params": base_params_no_decay,
+            "weight_decay": 0.0,
+            "lr": base_lr,
+        },
+    ]
+
+    logger.info(f"Optimizer groups:")
+    logger.info(f"  MoE params (decay): {len(moe_params_decay)} tensors, lr={moe_lr}")
+    logger.info(
+        f"  MoE params (no decay): {len(moe_params_no_decay)} tensors, lr={moe_lr}"
+    )
+    logger.info(
+        f"  Base params (decay): {len(base_params_decay)} tensors, lr={base_lr}"
+    )
+    logger.info(
+        f"  Base params (no decay): {len(base_params_no_decay)} tensors, lr={base_lr}"
+    )
+
+    if optimizer_type != "adamw":
+        raise ValueError(f"Optimizer {optimizer_type} not supported")
+
+    optimizer = AdamW(
+        optimizer_grouped_parameters,
+        betas=(optimizer_params.beta1, optimizer_params.beta2),
+        eps=optimizer_params.epsilon,
+    )
+
+    return optimizer

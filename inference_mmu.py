@@ -20,6 +20,7 @@ from PIL import Image
 from tqdm import tqdm
 import numpy as np
 import torch
+import random
 
 # import wandb  # Removed due to wandb unavailability in Russia
 from models import Showo, MAGVITv2, CLIPVisionTower
@@ -97,21 +98,16 @@ def run_mmu(config, model):
     top_k = 1  # retain only the top_k most likely tokens, clamp others to have 0 probability
 
     file_list = os.listdir(config.mmu_image_root)
+    with open(config.questions_path, "r") as f:
+        possible_questions = f.readline().strip()
+    
     responses = ["" for i in range(len(file_list))]
-
-    filenames = set([os.path.splitext(f)[0] for f in file_list])
-
     images = []
     # config.question = config.question.split(' *** ')
-    for i, file_name in enumerate(tqdm(filenames)):
-        image_file_name = f"{file_name}.png"
-        prompt_file_name = f"{file_name}.txt"
-
+    for i in tqdm(range(config.samples_count)):
+        image_file_name = random.choice(file_list)
         image_path = os.path.join(config.mmu_image_root, image_file_name)
-        prompt_path = os.path.join(config.mmu_image_root, prompt_file_name)
-
-        with open(prompt_path, "r") as f:
-            question = f.readline().strip()
+        question = random.choice(possible_questions)
 
         image_ori = Image.open(image_path).convert("RGB")
         image = image_transform(

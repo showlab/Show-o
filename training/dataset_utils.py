@@ -17,32 +17,24 @@ SYSTEM_PROMPT_LEN = 28
 class DummyLMDataset:
     def __len__(self):
         return 1000000
-    
+
     def __getitem__(self, idx):
-        return {'input_ids': [0]}  # dummy
-    
+        return {"input_ids": [0]}  # dummy
+
     def collate_fn(self, batch):
-        return {'input_ids': ['dummy text'] * len(batch)}
+        return {"input_ids": ["dummy text"] * len(batch)}
 
 
-def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataloader=None):
-    """
-    Создает все необходимые датасеты и датасеты лоадеры для обучения.
-    
-    Args:
-        config: конфигурация эксперимента
-        accelerator: объект Accelerator
-        tokenizer: токенизатор
-        create_imagetext_dataloader: функция для создания parquet dataloaders (опционально)
-    
-    Returns:
-        tuple: (combined_dataloader, num_update_steps_per_epoch, num_train_epochs)
-    """
-    logger.info("Creating dataloaders and lr_scheduler")
-
-    total_batch_size_t2i_without_accum = config.training.batch_size_t2i * accelerator.num_processes
+def create_dataloaders(
+    config, accelerator, tokenizer, create_imagetext_dataloader=None
+):
+    total_batch_size_t2i_without_accum = (
+        config.training.batch_size_t2i * accelerator.num_processes
+    )
     total_batch_size_t2i = (
-        config.training.batch_size_t2i * accelerator.num_processes * config.training.gradient_accumulation_steps
+        config.training.batch_size_t2i
+        * accelerator.num_processes
+        * config.training.gradient_accumulation_steps
     )
 
     preproc_config = config.dataset.preprocessing
@@ -71,15 +63,25 @@ def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataload
         )
         train_dataloader_t2i = dataset.train_dataloader
         num_update_steps_per_epoch = math.ceil(
-            train_dataloader_t2i.num_batches / config.training.gradient_accumulation_steps)
-        num_train_epochs = math.ceil(config.training.max_train_steps / num_update_steps_per_epoch)
+            train_dataloader_t2i.num_batches
+            / config.training.gradient_accumulation_steps
+        )
+        num_train_epochs = math.ceil(
+            config.training.max_train_steps / num_update_steps_per_epoch
+        )
 
     elif config.dataset.gen_type == "t2i_parquet":
         if create_imagetext_dataloader is None:
-            raise ValueError("create_imagetext_dataloader function is required for t2i_parquet mode")
-        
-        num_update_steps_per_epoch = math.ceil(config.experiment.max_train_examples_t2i / total_batch_size_t2i)
-        num_train_epochs = math.ceil(config.training.max_train_steps / num_update_steps_per_epoch)
+            raise ValueError(
+                "create_imagetext_dataloader function is required for t2i_parquet mode"
+            )
+
+        num_update_steps_per_epoch = math.ceil(
+            config.experiment.max_train_examples_t2i / total_batch_size_t2i
+        )
+        num_train_epochs = math.ceil(
+            config.training.max_train_steps / num_update_steps_per_epoch
+        )
 
         train_dataloader_t2i = create_imagetext_dataloader(
             train_shards_path_or_url=dataset_config.train_t2i_shards_path_or_url,
@@ -90,7 +92,7 @@ def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataload
             predefined_steps=num_update_steps_per_epoch,
             drop_last=True,
             shuffle=True,
-            shuffle_buffer_size=dataset_config.shuffle_buffer_size
+            shuffle_buffer_size=dataset_config.shuffle_buffer_size,
         )
 
     elif config.dataset.gen_type == "imagenet1k":
@@ -99,8 +101,10 @@ def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataload
             image_size=preproc_config.resolution,
         )
 
-        logger.info(f'Process index: {accelerator.process_index}, num_processes: {accelerator.num_processes}, '
-                   f'Dataset length: {len(dataset_imagenet)}')
+        logger.info(
+            f"Process index: {accelerator.process_index}, num_processes: {accelerator.num_processes}, "
+            f"Dataset length: {len(dataset_imagenet)}"
+        )
 
         if accelerator.num_processes > 1:
             sampler = DistributedSampler(
@@ -115,15 +119,19 @@ def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataload
             shuffle = True
 
         train_dataloader_t2i = DataLoader(
-            dataset_imagenet, 
+            dataset_imagenet,
             batch_size=config.training.batch_size_t2i,
-            sampler=sampler, 
+            sampler=sampler,
             collate_fn=dataset_imagenet.collate_fn,
-            shuffle=shuffle, 
-            num_workers=dataset_config.num_workers
+            shuffle=shuffle,
+            num_workers=dataset_config.num_workers,
         )
-        num_update_steps_per_epoch = math.ceil(len(dataset_imagenet) / total_batch_size_t2i)
-        num_train_epochs = math.ceil(config.training.max_train_steps / num_update_steps_per_epoch)
+        num_update_steps_per_epoch = math.ceil(
+            len(dataset_imagenet) / total_batch_size_t2i
+        )
+        num_train_epochs = math.ceil(
+            config.training.max_train_steps / num_update_steps_per_epoch
+        )
 
     else:
         raise ValueError(f"Unsupported dataset gen_type: {config.dataset.gen_type}")
@@ -131,8 +139,10 @@ def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataload
     # ============================================================
     # Data for image captioning / multimodal understanding (MMU)
     # ============================================================
-    total_batch_size_mmu_without_accum = config.training.batch_size_mmu * accelerator.num_processes
-    
+    total_batch_size_mmu_without_accum = (
+        config.training.batch_size_mmu * accelerator.num_processes
+    )
+
     if config.dataset.und_type == "captioning":
         dataset_mmu = Text2ImageDataset(
             train_shards_path_or_url=dataset_config.train_mmu_shards_path_or_url,
@@ -157,8 +167,10 @@ def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataload
 
     elif config.dataset.und_type == "captioning_parquet":
         if create_imagetext_dataloader is None:
-            raise ValueError("create_imagetext_dataloader function is required for captioning_parquet mode")
-        
+            raise ValueError(
+                "create_imagetext_dataloader function is required for captioning_parquet mode"
+            )
+
         train_dataloader_mmu = create_imagetext_dataloader(
             train_shards_path_or_url=dataset_config.train_mmu_shards_path_or_url,
             batch_size=config.training.batch_size_mmu,
@@ -169,7 +181,7 @@ def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataload
             drop_last=True,
             shuffle=True,
             shuffle_buffer_size=dataset_config.shuffle_buffer_size,
-            is_captioning=True
+            is_captioning=True,
         )
 
     elif config.dataset.und_type == "llava_pretrain":
@@ -179,8 +191,10 @@ def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataload
             num_workers=dataset_config.num_workers,
             world_size=accelerator.num_processes,
             local_rank=accelerator.process_index,
-            max_length=preproc_config.max_seq_length if config.dataset.add_system_prompt else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
-            phase="pretrain"
+            max_length=preproc_config.max_seq_length
+            if config.dataset.add_system_prompt
+            else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
+            phase="pretrain",
         )
 
     elif config.dataset.und_type == "llava_tuning":
@@ -190,21 +204,25 @@ def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataload
             num_workers=dataset_config.num_workers,
             world_size=accelerator.num_processes,
             local_rank=accelerator.process_index,
-            max_length=preproc_config.max_seq_length if config.dataset.add_system_prompt else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
-            phase="tuning"
+            max_length=preproc_config.max_seq_length
+            if config.dataset.add_system_prompt
+            else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
+            phase="tuning",
         )
 
     else:
-        raise NotImplementedError(f"Unsupported dataset und_type: {config.dataset.und_type}")
+        raise NotImplementedError(
+            f"Unsupported dataset und_type: {config.dataset.und_type}"
+        )
 
     # ============================================================
     # Dummy LM dataloader
     # ============================================================
     train_dataloader_lm = torch.utils.data.DataLoader(
-        DummyLMDataset(), 
+        DummyLMDataset(),
         batch_size=config.training.batch_size_lm,
-        sampler=None, 
-        collate_fn=DummyLMDataset().collate_fn
+        sampler=None,
+        collate_fn=DummyLMDataset().collate_fn,
     )
 
     # ============================================================
@@ -216,10 +234,13 @@ def create_dataloaders(config, accelerator, tokenizer, create_imagetext_dataload
         "mmu_flow": train_dataloader_mmu,
     }
 
-    combined_dataloader = CombinedLoader(iterables, mode=config.dataset.combined_loader_mode)
+    combined_dataloader = CombinedLoader(
+        iterables, mode=config.dataset.combined_loader_mode
+    )
 
-    logger.info(f"Dataloaders created. Num update steps per epoch: {num_update_steps_per_epoch}, "
-               f"Num train epochs: {num_train_epochs}")
+    logger.info(
+        f"Dataloaders created. Num update steps per epoch: {num_update_steps_per_epoch}, "
+        f"Num train epochs: {num_train_epochs}"
+    )
 
     return combined_dataloader, num_update_steps_per_epoch, num_train_epochs
-
