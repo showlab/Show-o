@@ -15,13 +15,13 @@ experiment:
     max_train_examples_mmu: 40000000
     save_every: 3000
     eval_every: 2500
-    generate_every: 200
+    generate_every: 50
     log_every: 50
     log_grad_norm_every: 50
     resume_from_checkpoint: false  # ✅ Не загружаем старый checkpoint с NaN
 
 moe:
-    enabled: false  # ✅ Выключаем MoE, так как код закомментирован
+    enabled: true  # ✅ Выключаем MoE, так как код закомментирован
     num_experts: 8
     top_k: 2
     save_only_moe_weights: true
@@ -81,11 +81,11 @@ lr_scheduler:
         warmup_steps: 3000
 
 training:
-    gradient_accumulation_steps: 4
+    gradient_accumulation_steps: 1
     noise_type: "mask"
-    batch_size_t2i: 4  # ✅ Увеличили для стабильности
+    batch_size_t2i: 8  # ✅ Увеличили для стабильности
     batch_size_lm: 1
-    batch_size_mmu: 4  # ✅ Увеличили для стабильности
+    batch_size_mmu: 8  # ✅ Увеличили для стабильности
     mixed_precision: "bf16"
     enable_tf32: True
     seed: 10086
@@ -101,4 +101,4 @@ training:
     lm_coeff: 0.0
     mmu_coeff: 1.0
 
-    balance_coeff: 0.0  # ✅ MoE выключен
+    balance_coeff: 0.1  # ✅ MoE выключен

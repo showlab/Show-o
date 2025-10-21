@@ -39,12 +39,12 @@ from training.prompting_utils import (
 )
 from models.lr_schedulers import get_scheduler
 from models.logger import set_verbosity_info, set_verbosity_error
-# from moe_utils import patch_and_freeze_moe  # MoE support - DISABLED for vanilla training
+from moe_utils import patch_and_freeze_moe  # MoE support
 from training.eval_utils import (
     visualize_predictions,
     generate_images,
     log_grad_norm,
-    # collect_and_log_moe_activations,  # MoE disabled
+    collect_and_log_moe_activations,
     log_training_metrics,
     evaluate_mmu,
 )
@@ -267,19 +267,21 @@ def train_step(
         loss_mmu.repeat(config.training.batch_size_mmu)
     ).mean()
 
-    # MoE balance loss disabled for vanilla training
-    # balance_loss, num_moe_layers = collect_moe_balance_losses(model)
-    # if num_moe_layers == 0:
-    #     raise Exception(f"Num moe layers = {num_moe_layers}")
-    # balance_coeff = config.training.get("balance_coeff", 0.01)
-    balance_loss = torch.tensor(0.0, device=accelerator.device)
-    balance_coeff = 0.0
+    # MoE balance loss
+    if config.get("moe", {}).get("enabled", False):
+        balance_loss, num_moe_layers = collect_moe_balance_losses(model)
+        if num_moe_layers == 0:
+            logger.warning(f"⚠️ MoE enabled but num_moe_layers = {num_moe_layers}")
+        balance_coeff = config.training.get("balance_coeff", 0.01)
+    else:
+        balance_loss = torch.tensor(0.0, device=accelerator.device)
+        balance_coeff = 0.0
 
     loss = (
         config.training.t2i_coeff * loss_t2i
         + config.training.lm_coeff * loss_lm
         + config.training.mmu_coeff * loss_mmu
-        # + balance_coeff * balance_loss  # MoE disabled
+        + balance_coeff * balance_loss
     )
 
     avg_masking_rate = accelerator.gather(
@@ -339,12 +341,12 @@ def train_step(
             logger=logger,
         )
 
-        # Set global step for MoE layers (disabled for vanilla training)
-        # if mlflow_client is not None and mlflow_run_id is not None:
-        #     unwrapped_model = accelerator.unwrap_model(model)
-        #     for layer in unwrapped_model.showo.model.layers:
-        #         if hasattr(layer, "mlp") and hasattr(layer.mlp, "set_global_step"):
-        #             layer.mlp.set_global_step(global_step + 1)
+        # Set global step for MoE layers
+        if config.get("moe", {}).get("enabled", False):
+            unwrapped_model = accelerator.unwrap_model(model)
+            for layer in unwrapped_model.showo.model.layers:
+                if hasattr(layer, "mlp") and hasattr(layer.mlp, "set_global_step"):
+                    layer.mlp.set_global_step(global_step + 1)
 
         # Reset time meters
         batch_time_m.reset()
@@ -384,28 +386,27 @@ def train_step(
     }
 
 
-# MoE function disabled for vanilla training
-# def collect_moe_balance_losses(model):
-#     total_balance_loss = 0.0
-#     num_moe_layers = 0
-#     if hasattr(model, "module"):
-#         unwrapped_model = model.module
-#     else:
-#         unwrapped_model = model
-#
-#     for layer_idx, layer in enumerate(unwrapped_model.showo.model.layers):
-#         if hasattr(layer, "mlp") and hasattr(layer.mlp, "gate"):
-#             if hasattr(layer.mlp.gate, "get_loss") and layer.mlp.gate.has_loss:
-#                 gate_loss = layer.mlp.gate.get_loss(
-#                     clear=True
-#                 )  # clear=True чтобы не накапливать
-#                 if gate_loss is not None:
-#                     total_balance_loss += gate_loss
-#                     num_moe_layers += 1
-#                     logger.debug(
-#                         f"MoE layer {layer_idx}: balance_loss = {gate_loss.item():.6f}"
-#                     )
-#     return total_balance_loss, num_moe_layers
+def collect_moe_balance_losses(model):
+    total_balance_loss = 0.0
+    num_moe_layers = 0
+    if hasattr(model, "module"):
+        unwrapped_model = model.module
+    else:
+        unwrapped_model = model
+
+    for layer_idx, layer in enumerate(unwrapped_model.showo.model.layers):
+        if hasattr(layer, "mlp") and hasattr(layer.mlp, "gate"):
+            if hasattr(layer.mlp.gate, "get_loss") and layer.mlp.gate.has_loss:
+                gate_loss = layer.mlp.gate.get_loss(
+                    clear=True
+                )  # clear=True чтобы не накапливать
+                if gate_loss is not None:
+                    total_balance_loss += gate_loss
+                    num_moe_layers += 1
+                    logger.debug(
+                        f"MoE layer {layer_idx}: balance_loss = {gate_loss.item():.6f}"
+                    )
+    return total_balance_loss, num_moe_layers
 
 
 def get_vq_model_class(model_type):
@@ -610,30 +611,30 @@ def main():
         logger.info(f"Created new model - vocab_size: {model.vocab_size}, mask_token_id: {model.mask_token_id}")
 
     # MoE disabled for vanilla training
-    # if config.get("moe", None) and config.moe.get("enabled", False):
-    #     special_tokens = {
-    #         "soi_id": uni_prompting.sptids_dict["<|soi|>"].item()
-    #         if "<|soi|>" in uni_prompting.sptids_dict
-    #         else None,
-    #         "eoi_id": uni_prompting.sptids_dict["<|eoi|>"].item()
-    #         if "<|eoi|>" in uni_prompting.sptids_dict
-    #         else None,
-    #         "sov_id": uni_prompting.sptids_dict["<|sov|>"].item()
-    #         if "<|sov|>" in uni_prompting.sptids_dict
-    #         else None,
-    #         "eov_id": uni_prompting.sptids_dict["<|eov|>"].item()
-    #         if "<|eov|>" in uni_prompting.sptids_dict
-    #         else None,
-    #     }
-    #
-    #     model = patch_and_freeze_moe(
-    #         model,
-    #         num_experts=config.moe["num_experts"],
-    #         top_k=config.moe["top_k"],
-    #         mlflow_client=mlflow_client,
-    #         mlflow_run_id=mlflow_run_id,
-    #         special_tokens=special_tokens,
-    #     )
+    if config.get("moe", None) and config.moe.get("enabled", False):
+        special_tokens = {
+            "soi_id": uni_prompting.sptids_dict["<|soi|>"].item()
+            if "<|soi|>" in uni_prompting.sptids_dict
+            else None,
+            "eoi_id": uni_prompting.sptids_dict["<|eoi|>"].item()
+            if "<|eoi|>" in uni_prompting.sptids_dict
+            else None,
+            "sov_id": uni_prompting.sptids_dict["<|sov|>"].item()
+            if "<|sov|>" in uni_prompting.sptids_dict
+            else None,
+            "eov_id": uni_prompting.sptids_dict["<|eov|>"].item()
+            if "<|eov|>" in uni_prompting.sptids_dict
+            else None,
+        }
+    
+        model = patch_and_freeze_moe(
+            model,
+            num_experts=config.moe["num_experts"],
+            top_k=config.moe["top_k"],
+            mlflow_client=mlflow_client,
+            mlflow_run_id=mlflow_run_id,
+            special_tokens=special_tokens,
+        )
 
     mask_id = model.mask_token_id
 
@@ -805,35 +806,37 @@ def main():
             if accelerator.sync_gradients:
                 batch_time_m.update(time.time() - end)
                 end = time.time()
-                # MoE activations logging disabled for vanilla training
-                # if (
-                #     (global_step + 1) % 500 == 0
-                #     and config.get("moe", {}).get("enabled", False)
-                #     and accelerator.is_main_process
-                # ):
-                #     collect_and_log_moe_activations(
-                #         model=model,
-                #         accelerator=accelerator,
-                #         input_ids=input_ids,
-                #         attention_mask=attention_mask,
-                #         labels=labels,
-                #         config=config,
-                #         batch_size_t2i=batch_size_t2i,
-                #         batch_size_lm=batch_size_lm,
-                #         batch_size_mmu=batch_size_mmu,
-                #         global_step=global_step + 1,
-                #         mlflow_client=mlflow_client,
-                #         mlflow_run_id=mlflow_run_id,
-                #     )
+                if (
+                    (global_step + 1) % 100 == 0
+                    and config.get("moe", {}).get("enabled", False)
+                    and accelerator.is_main_process
+                ):
+                    collect_and_log_moe_activations(
+                        model=model,
+                        accelerator=accelerator,
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        labels=labels,
+                        config=config,
+                        batch_size_t2i=batch_size_t2i,
+                        batch_size_lm=batch_size_lm,
+                        batch_size_mmu=batch_size_mmu,
+                        global_step=global_step + 1,
+                        mlflow_client=mlflow_client,
+                        mlflow_run_id=mlflow_run_id,
+                    )
 
                 # Save model checkpoint
                 if (global_step + 1) % config.experiment.save_every == 0:
                     save_checkpoint(model, config, accelerator, global_step + 1)
 
-                if (
-                    (global_step + 1) == 1
-                    or (global_step + 1) % config.experiment.generate_every == 0
-                ) and accelerator.is_main_process:
+                # print(f"global_step: {global_step + 1}, config.experiment.generate_every: {config.experiment.generate_every}")
+                # Debug logging for generation
+                should_generate = (global_step + 1) == 1 or (global_step + 1) % config.experiment.generate_every == 0
+                if (global_step + 1) % config.experiment.generate_every == 0:
+                    logger.info(f"🎨 Step {global_step + 1}: should_generate={should_generate}, is_main_process={accelerator.is_main_process}")
+
+                if should_generate and accelerator.is_main_process:
                     generate_images(
                         model,
                         vq_model,
