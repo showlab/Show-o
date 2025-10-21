@@ -9,8 +9,8 @@ mlflow:
 
 experiment:
     project: "moe-training"
-    name: "showo-moe-mmu"
-    output_dir: "output/showo-moe-mmu"
+    name: "showo-vanilla-mmu"  # ✅ Изменили имя, так как MoE выключен
+    output_dir: "output/showo-vanilla-mmu"  # ✅ Новая директория
     max_train_examples_t2i: 20000000
     max_train_examples_mmu: 40000000
     save_every: 3000
@@ -18,10 +18,10 @@ experiment:
     generate_every: 200
     log_every: 50
     log_grad_norm_every: 50
-    resume_from_checkpoint: "latest"
+    resume_from_checkpoint: false  # ✅ Не загружаем старый checkpoint с NaN
 
 moe:
-    enabled: true
+    enabled: false  # ✅ Выключаем MoE, так как код закомментирован
     num_experts: 8
     top_k: 2
     save_only_moe_weights: true
@@ -35,13 +35,13 @@ model:
 
     showo:
         load_from_showo: True
-        pretrained_model_path: "showlab/show-o"
-        w_clip_vit: False
+        pretrained_model_path: "showlab/show-o-w-clip-vit"  # ✅ Используем модель для 256x256
+        w_clip_vit: True
         vocab_size: 58498
         llm_vocab_size: 50295
         llm_model_path: "microsoft/phi-1_5"
         codebook_size: 8192
-        num_vq_tokens: 1024
+        num_vq_tokens: 256  # ✅ Для 256x256: 16x16 = 256 токенов
         num_new_special_tokens: 10
 
     gradient_checkpointing: True
@@ -60,14 +60,14 @@ dataset:
         pin_memory: True
         persistent_workers: True
     preprocessing:
-        max_seq_length: 512
-        resolution: 256
+        max_seq_length: 256  # ✅ Уменьшаем для стабильности
+        resolution: 256  # ✅ Сначала обучим на 256x256
 
 optimizer:
     name: adamw
     params: # default adamw params
-        learning_rate: 0.000001
-        moe_learning_rate: 0.00001 # отдельный lr для MoE слоев
+        learning_rate: 0.00001  # ✅ Увеличили для vanilla (без MoE)
+        moe_learning_rate: 0.00001  # отдельный lr для MoE слоев (пока не используется)
         scale_lr: False # scale learning rate by total batch size
         beta1: 0.9
         beta2: 0.999
@@ -81,11 +81,11 @@ lr_scheduler:
         warmup_steps: 3000
 
 training:
-    gradient_accumulation_steps: 1
+    gradient_accumulation_steps: 4
     noise_type: "mask"
-    batch_size_t2i: 16
+    batch_size_t2i: 4  # ✅ Увеличили для стабильности
     batch_size_lm: 1
-    batch_size_mmu: 16
+    batch_size_mmu: 4  # ✅ Увеличили для стабильности
     mixed_precision: "bf16"
     enable_tf32: True
     seed: 10086
@@ -93,12 +93,12 @@ training:
     overfit_one_batch: False
     cond_dropout_prob: 0.1
     min_masking_rate: 0.0
-    label_smoothing: 0.0
+    label_smoothing: 0.1  # ✅ Добавили для стабильности
     max_grad_norm: 1.0
-    guidance_scale: 0.0
+    guidance_scale: 3.0
     generation_timesteps: 18
     t2i_coeff: 1.0
     lm_coeff: 0.0
     mmu_coeff: 1.0
 
-    balance_coeff: 10.0
+    balance_coeff: 0.0  # ✅ MoE выключен

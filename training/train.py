@@ -39,12 +39,12 @@ from training.prompting_utils import (
 )
 from models.lr_schedulers import get_scheduler
 from models.logger import set_verbosity_info, set_verbosity_error
-from moe_utils import patch_and_freeze_moe  # MoE support
+# from moe_utils import patch_and_freeze_moe  # MoE support - DISABLED for vanilla training
 from training.eval_utils import (
     visualize_predictions,
     generate_images,
     log_grad_norm,
-    collect_and_log_moe_activations,
+    # collect_and_log_moe_activations,  # MoE disabled
     log_training_metrics,
     evaluate_mmu,
 )
@@ -233,8 +233,15 @@ def train_step(
     labels = torch.cat((labels, labels_mmu.to(input_ids.device)), dim=0)
 
     if global_step == 0 and epoch == 0:
-        logger.info("Input ids: {}".format(input_ids))
-        logger.info("Labels: {}".format(labels))
+        logger.info(f"📊 First training step diagnostics:")
+        logger.info(f"   input_ids shape: {input_ids.shape}")
+        logger.info(f"   input_ids range: [{input_ids.min().item()}, {input_ids.max().item()}]")
+        logger.info(f"   labels range (non-ignore): [{labels[labels != uni_prompting.ignore_id].min().item()}, {labels[labels != uni_prompting.ignore_id].max().item()}]")
+        logger.info(f"   mask_id used: {mask_id}")
+        logger.info(f"   text_tokenizer size: {len(uni_prompting.text_tokenizer)}")
+        logger.info(f"   Expected image token range: [{len(uni_prompting.text_tokenizer)}, {len(uni_prompting.text_tokenizer) + 8192 - 1}]")
+        # logger.info("Input ids: {}".format(input_ids))
+        # logger.info("Labels: {}".format(labels))
 
     # Forward pass
     logits, loss_t2i, loss_lm, loss_mmu = model(
@@ -260,16 +267,19 @@ def train_step(
         loss_mmu.repeat(config.training.batch_size_mmu)
     ).mean()
 
-    balance_loss, num_moe_layers = collect_moe_balance_losses(model)
-    if num_moe_layers == 0:
-        raise Exception(f"Num moe layers = {num_moe_layers}")
-    balance_coeff = config.training.get("balance_coeff", 0.01)
+    # MoE balance loss disabled for vanilla training
+    # balance_loss, num_moe_layers = collect_moe_balance_losses(model)
+    # if num_moe_layers == 0:
+    #     raise Exception(f"Num moe layers = {num_moe_layers}")
+    # balance_coeff = config.training.get("balance_coeff", 0.01)
+    balance_loss = torch.tensor(0.0, device=accelerator.device)
+    balance_coeff = 0.0
 
     loss = (
         config.training.t2i_coeff * loss_t2i
         + config.training.lm_coeff * loss_lm
         + config.training.mmu_coeff * loss_mmu
-        + balance_coeff * balance_loss
+        # + balance_coeff * balance_loss  # MoE disabled
     )
 
     avg_masking_rate = accelerator.gather(
@@ -329,12 +339,12 @@ def train_step(
             logger=logger,
         )
 
-        # Set global step for MoE layers
-        if mlflow_client is not None and mlflow_run_id is not None:
-            unwrapped_model = accelerator.unwrap_model(model)
-            for layer in unwrapped_model.showo.model.layers:
-                if hasattr(layer, "mlp") and hasattr(layer.mlp, "set_global_step"):
-                    layer.mlp.set_global_step(global_step + 1)
+        # Set global step for MoE layers (disabled for vanilla training)
+        # if mlflow_client is not None and mlflow_run_id is not None:
+        #     unwrapped_model = accelerator.unwrap_model(model)
+        #     for layer in unwrapped_model.showo.model.layers:
+        #         if hasattr(layer, "mlp") and hasattr(layer.mlp, "set_global_step"):
+        #             layer.mlp.set_global_step(global_step + 1)
 
         # Reset time meters
         batch_time_m.reset()
@@ -374,27 +384,28 @@ def train_step(
     }
 
 
-def collect_moe_balance_losses(model):
-    total_balance_loss = 0.0
-    num_moe_layers = 0
-    if hasattr(model, "module"):
-        unwrapped_model = model.module
-    else:
-        unwrapped_model = model
-
-    for layer_idx, layer in enumerate(unwrapped_model.showo.model.layers):
-        if hasattr(layer, "mlp") and hasattr(layer.mlp, "gate"):
-            if hasattr(layer.mlp.gate, "get_loss") and layer.mlp.gate.has_loss:
-                gate_loss = layer.mlp.gate.get_loss(
-                    clear=True
-                )  # clear=True чтобы не накапливать
-                if gate_loss is not None:
-                    total_balance_loss += gate_loss
-                    num_moe_layers += 1
-                    logger.debug(
-                        f"MoE layer {layer_idx}: balance_loss = {gate_loss.item():.6f}"
-                    )
-    return total_balance_loss, num_moe_layers
+# MoE function disabled for vanilla training
+# def collect_moe_balance_losses(model):
+#     total_balance_loss = 0.0
+#     num_moe_layers = 0
+#     if hasattr(model, "module"):
+#         unwrapped_model = model.module
+#     else:
+#         unwrapped_model = model
+#
+#     for layer_idx, layer in enumerate(unwrapped_model.showo.model.layers):
+#         if hasattr(layer, "mlp") and hasattr(layer.mlp, "gate"):
+#             if hasattr(layer.mlp.gate, "get_loss") and layer.mlp.gate.has_loss:
+#                 gate_loss = layer.mlp.gate.get_loss(
+#                     clear=True
+#                 )  # clear=True чтобы не накапливать
+#                 if gate_loss is not None:
+#                     total_balance_loss += gate_loss
+#                     num_moe_layers += 1
+#                     logger.debug(
+#                         f"MoE layer {layer_idx}: balance_loss = {gate_loss.item():.6f}"
+#                     )
+#     return total_balance_loss, num_moe_layers
 
 
 def get_vq_model_class(model_type):
@@ -576,10 +587,16 @@ def main():
 
     # Initialize Show-o model
     if config.model.showo.load_from_showo:
+        logger.info(f"Loading model from {config.model.showo.pretrained_model_path}")
         model = Showo.from_pretrained(config.model.showo.pretrained_model_path).to(
             accelerator.device
         )
+        logger.info(f"Original model vocab_size: {model.vocab_size}, mask_token_id: {model.mask_token_id}")
+        logger.info(f"Original model codebook_size: {model.config.codebook_size}")
+        logger.info(f"Config vocab_size: {config.model.showo.vocab_size}, codebook_size: {config.model.showo.codebook_size}")
+        
         if config.model.showo.vocab_size != model.vocab_size:
+            logger.warning(f"⚠️ Vocab size mismatch! Resizing embeddings from {model.vocab_size} to {config.model.showo.vocab_size}")
             model.showo.resize_token_embeddings(config.model.showo.vocab_size)
             model.config.codebook_size = config.model.showo.codebook_size
             model.config.vocab_size = config.model.showo.vocab_size
@@ -587,33 +604,36 @@ def main():
             model.output_size = config.model.showo.vocab_size
             model.config.mask_token_id = config.model.showo.vocab_size - 1
             model.mask_token_id = config.model.showo.vocab_size - 1
+            logger.info(f"After resize - vocab_size: {model.vocab_size}, mask_token_id: {model.mask_token_id}")
     else:
         model = Showo(**config.model.showo).to(accelerator.device)
+        logger.info(f"Created new model - vocab_size: {model.vocab_size}, mask_token_id: {model.mask_token_id}")
 
-    if config.get("moe", None) and config.moe.get("enabled", False):
-        special_tokens = {
-            "soi_id": uni_prompting.sptids_dict["<|soi|>"].item()
-            if "<|soi|>" in uni_prompting.sptids_dict
-            else None,
-            "eoi_id": uni_prompting.sptids_dict["<|eoi|>"].item()
-            if "<|eoi|>" in uni_prompting.sptids_dict
-            else None,
-            "sov_id": uni_prompting.sptids_dict["<|sov|>"].item()
-            if "<|sov|>" in uni_prompting.sptids_dict
-            else None,
-            "eov_id": uni_prompting.sptids_dict["<|eov|>"].item()
-            if "<|eov|>" in uni_prompting.sptids_dict
-            else None,
-        }
-
-        model = patch_and_freeze_moe(
-            model,
-            num_experts=config.moe["num_experts"],
-            top_k=config.moe["top_k"],
-            mlflow_client=mlflow_client,
-            mlflow_run_id=mlflow_run_id,
-            special_tokens=special_tokens,
-        )
+    # MoE disabled for vanilla training
+    # if config.get("moe", None) and config.moe.get("enabled", False):
+    #     special_tokens = {
+    #         "soi_id": uni_prompting.sptids_dict["<|soi|>"].item()
+    #         if "<|soi|>" in uni_prompting.sptids_dict
+    #         else None,
+    #         "eoi_id": uni_prompting.sptids_dict["<|eoi|>"].item()
+    #         if "<|eoi|>" in uni_prompting.sptids_dict
+    #         else None,
+    #         "sov_id": uni_prompting.sptids_dict["<|sov|>"].item()
+    #         if "<|sov|>" in uni_prompting.sptids_dict
+    #         else None,
+    #         "eov_id": uni_prompting.sptids_dict["<|eov|>"].item()
+    #         if "<|eov|>" in uni_prompting.sptids_dict
+    #         else None,
+    #     }
+    #
+    #     model = patch_and_freeze_moe(
+    #         model,
+    #         num_experts=config.moe["num_experts"],
+    #         top_k=config.moe["top_k"],
+    #         mlflow_client=mlflow_client,
+    #         mlflow_run_id=mlflow_run_id,
+    #         special_tokens=special_tokens,
+    #     )
 
     mask_id = model.mask_token_id
 
@@ -785,25 +805,26 @@ def main():
             if accelerator.sync_gradients:
                 batch_time_m.update(time.time() - end)
                 end = time.time()
-                if (
-                    (global_step + 1) % 500 == 0
-                    and config.get("moe", {}).get("enabled", False)
-                    and accelerator.is_main_process
-                ):
-                    collect_and_log_moe_activations(
-                        model=model,
-                        accelerator=accelerator,
-                        input_ids=input_ids,
-                        attention_mask=attention_mask,
-                        labels=labels,
-                        config=config,
-                        batch_size_t2i=batch_size_t2i,
-                        batch_size_lm=batch_size_lm,
-                        batch_size_mmu=batch_size_mmu,
-                        global_step=global_step + 1,
-                        mlflow_client=mlflow_client,
-                        mlflow_run_id=mlflow_run_id,
-                    )
+                # MoE activations logging disabled for vanilla training
+                # if (
+                #     (global_step + 1) % 500 == 0
+                #     and config.get("moe", {}).get("enabled", False)
+                #     and accelerator.is_main_process
+                # ):
+                #     collect_and_log_moe_activations(
+                #         model=model,
+                #         accelerator=accelerator,
+                #         input_ids=input_ids,
+                #         attention_mask=attention_mask,
+                #         labels=labels,
+                #         config=config,
+                #         batch_size_t2i=batch_size_t2i,
+                #         batch_size_lm=batch_size_lm,
+                #         batch_size_mmu=batch_size_mmu,
+                #         global_step=global_step + 1,
+                #         mlflow_client=mlflow_client,
+                #         mlflow_run_id=mlflow_run_id,
+                #     )
 
                 # Save model checkpoint
                 if (global_step + 1) % config.experiment.save_every == 0:
@@ -840,17 +861,19 @@ def main():
                         mlflow_run_id=mlflow_run_id,
                     )
 
-                    evaluate_mmu(
-                        model,
-                        vq_model,
-                        uni_prompting,
-                        accelerator,
-                        config,
-                        global_step + 1,
-                        batch["mmu_flow"],
-                        mlflow_client=mlflow_client,
-                        mlflow_run_id=mlflow_run_id,
-                    )
+                    # Отключаем evaluate_mmu для моделей с CLIP ViT (несовместимо с VQ tokens)
+                    if not config.model.showo.get("w_clip_vit", False):
+                        evaluate_mmu(
+                            model,
+                            vq_model,
+                            uni_prompting,
+                            accelerator,
+                            config,
+                            global_step + 1,
+                            batch["mmu_flow"],
+                            mlflow_client=mlflow_client,
+                            mlflow_run_id=mlflow_run_id,
+                        )
 
                 global_step += 1
 

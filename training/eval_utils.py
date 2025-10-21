@@ -179,12 +179,22 @@ def generate_images(
 
     if hasattr(model, "module"):
         mask_dtype = model.module.showo.model.embed_tokens.weight.dtype
+        mask_token_id = model.module.mask_token_id
+        vocab_size = model.module.vocab_size
+        codebook_size = model.module.config.codebook_size
     else:
-        mask_dtype = accelerator.unwrap_model(
-            model
-        ).showo.model.embed_tokens.weight.dtype
-
-    mask_token_id = config.model.showo.vocab_size - 1
+        unwrapped_model = accelerator.unwrap_model(model)
+        mask_dtype = unwrapped_model.showo.model.embed_tokens.weight.dtype
+        mask_token_id = unwrapped_model.mask_token_id
+        vocab_size = unwrapped_model.vocab_size
+        codebook_size = unwrapped_model.config.codebook_size
+    
+    logger.info(f"🎨 Generating images at step {global_step}")
+    logger.info(f"   mask_token_id: {mask_token_id}")
+    logger.info(f"   vocab_size: {vocab_size}")
+    logger.info(f"   codebook_size: {codebook_size}")
+    logger.info(f"   config.model.showo.vocab_size: {config.model.showo.vocab_size}")
+    
     image_tokens = (
         torch.ones(
             (len(validation_prompts), config.model.showo.num_vq_tokens),
@@ -242,11 +252,16 @@ def generate_images(
         )
     # In the beginning of training, the model is not fully trained and the generated token ids can be out of range
     # so we clamp them to the correct range.
+    logger.info(f"   Generated tokens - min: {gen_token_ids.min().item()}, max: {gen_token_ids.max().item()}, mean: {gen_token_ids.float().mean().item():.2f}")
+    logger.info(f"   Clamping to [0, {codebook_size - 1}]")
+    
     gen_token_ids = torch.clamp(
         gen_token_ids,
-        max=accelerator.unwrap_model(model).config.codebook_size - 1,
+        max=codebook_size - 1,
         min=0,
     )
+    logger.info(f"   After clamp - min: {gen_token_ids.min().item()}, max: {gen_token_ids.max().item()}")
+    
     images = vq_model.decode_code(gen_token_ids)
 
     model.train()
