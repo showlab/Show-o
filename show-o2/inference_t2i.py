@@ -24,7 +24,8 @@ from models import Showo2Qwen2_5, omni_attn_mask, omni_attn_mask_naive
 from models.misc import get_text_tokenizer, prepare_gen_input
 from utils import get_config, flatten_omega_conf, denorm, get_hyper_params, path_to_llm_name, load_state_dict
 from torch.nn.attention.flex_attention import flex_attention, create_block_mask
-
+from transformers import AutoFeatureExtractor
+from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 
 #
 # seed_value = 42
@@ -87,6 +88,9 @@ if __name__ == '__main__':
 
     model.to(weight_type)
     model.eval()
+
+    processor = AutoFeatureExtractor.from_pretrained("CompVis/stable-diffusion-safety-checker")
+    safety_checker = StableDiffusionSafetyChecker.from_pretrained("CompVis/stable-diffusion-safety-checker")
 
     # for time embedding
     if config.model.showo.add_time_embeds:
@@ -194,6 +198,15 @@ if __name__ == '__main__':
         images = denorm(images)
         pil_images = [Image.fromarray(image) for image in images]
 
+        inputs = processor(images=pil_images, return_tensors="pt")
+
+        # Check safety
+        with torch.no_grad():
+            checked_images, has_nsfw_concept = safety_checker(
+                images=pil_images,
+                clip_input=inputs["pixel_values"]
+            )
+
         # Log images
-        wandb_images = [wandb.Image(image, caption=prompts[i]) for i, image in enumerate(pil_images)]
+        wandb_images = [wandb.Image(image, caption=prompts[i]) for i, image in enumerate(checked_images)]
         wandb.log({"Generated images": wandb_images}, step=step)
