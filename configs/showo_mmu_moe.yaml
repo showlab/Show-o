@@ -15,9 +15,9 @@ experiment:
     max_train_examples_mmu: 40000000
     save_every: 3000
     eval_every: 2500
-    generate_every: 50
-    log_every: 50
-    log_grad_norm_every: 50
+    generate_every: 500
+    log_every: 200
+    log_grad_norm_every: 500
     resume_from_checkpoint: false  # ✅ Не загружаем старый checkpoint с NaN
 
 moe:
@@ -67,7 +67,7 @@ optimizer:
     name: adamw
     params: # default adamw params
         learning_rate: 0.00001  # ✅ Увеличили для vanilla (без MoE)
-        moe_learning_rate: 0.00001  # отдельный lr для MoE слоев (пока не используется)
+        moe_learning_rate: 0.0001  # отдельный lr для MoE слоев (пока не используется)
         scale_lr: False # scale learning rate by total batch size
         beta1: 0.9
         beta2: 0.999
@@ -78,14 +78,14 @@ lr_scheduler:
     scheduler: "cosine"
     params:
         learning_rate: ${optimizer.params.learning_rate}
-        warmup_steps: 3000
+        warmup_steps: 1000
 
 training:
     gradient_accumulation_steps: 1
     noise_type: "mask"
-    batch_size_t2i: 8  # ✅ Увеличили для стабильности
+    batch_size_t2i: 16 # ✅ Увеличили для стабильности
     batch_size_lm: 1
-    batch_size_mmu: 8  # ✅ Увеличили для стабильности
+    batch_size_mmu: 16  # ✅ Увеличили для стабильности
     mixed_precision: "bf16"
     enable_tf32: True
     seed: 10086
@@ -101,4 +101,4 @@ training:
     lm_coeff: 0.0
     mmu_coeff: 1.0
 
-    balance_coeff: 0.1  # ✅ MoE выключен
+    balance_coeff: 4.0  # ✅ MoE выключен

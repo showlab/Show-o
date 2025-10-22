@@ -865,18 +865,18 @@ def main():
                     )
 
                     # Отключаем evaluate_mmu для моделей с CLIP ViT (несовместимо с VQ tokens)
-                    if not config.model.showo.get("w_clip_vit", False):
-                        evaluate_mmu(
-                            model,
-                            vq_model,
-                            uni_prompting,
-                            accelerator,
-                            config,
-                            global_step + 1,
-                            batch["mmu_flow"],
-                            mlflow_client=mlflow_client,
-                            mlflow_run_id=mlflow_run_id,
-                        )
+                    # if not config.model.showo.get("w_clip_vit", False):
+                    #     evaluate_mmu(
+                    #         model,
+                    #         vq_model,
+                    #         uni_prompting,
+                    #         accelerator,
+                    #         config,
+                    #         global_step + 1,
+                    #         batch["mmu_flow"],
+                    #         mlflow_client=mlflow_client,
+                    #         mlflow_run_id=mlflow_run_id,
+                    #     )
 
                 global_step += 1
 
