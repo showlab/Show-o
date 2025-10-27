@@ -201,6 +201,32 @@ image_path=./inpainting_validation/alpine_lake.jpg
 ```
 <img src="docs/github_extrapolation.png" width="1000">
 
+## Installation Q&A
+
+### Q: Installation fails with error while building `pycurl`: `fatal error: openssl/ssl.h: No such file or directory`
+
+**A:** This is a common issue when your system lacks the OpenSSL and libcurl development headers. `pycurl` requires both `libssl-dev` and `libcurl4-openssl-dev` to build correctly.
+
+#### Solution for Ubuntu/Debian:
+Run the following command in your terminal to install the required dependencies:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libssl-dev libcurl4-openssl-dev
+```
+
+Then, try reinstalling `pycurl`:
+
+```bash
+pip install pycurl
+```
+
+If you’re installing from a project with `pyproject.toml`, you may also run:
+
+```bash
+pip install .
+```
+
 ## Training pipeline
 **Prepare your training data and change the data path in `configs/xx.yaml`.**
 
