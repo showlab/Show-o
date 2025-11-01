@@ -214,7 +214,7 @@ class ShowoBenchmark:
                         img_idx,
                         self.output_dir,
                     )
-                    print(f"💾 Сохранено сравнение: {comparison_path}")
+                    print(f"Сохранено сравнение: {comparison_path}")
 
                 gt_tensor = (
                     (transform_to_tensor(gt_image) * 255).unsqueeze(0).to(torch.uint8)
@@ -242,7 +242,7 @@ class ShowoBenchmark:
 
 
 if __name__ == "__main__":
-    config_path = "../configs/showo_demo_w_clip_vit.yaml"
+    config_path = "../configs/showo_demo_w_clip_vit_512x512.yaml"
     config = OmegaConf.load(config_path)
     config.mode = "t2i"
     config.training.guidance_scale = 3.0

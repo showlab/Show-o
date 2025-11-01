@@ -1008,6 +1008,7 @@ class PhiDecoderLayer(nn.Module):
         use_cache: Optional[bool] = False,
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         input_ids: Optional[torch.LongTensor] = None,
+        moe_temperature: Optional[float] = None
     ) -> Tuple[
         torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]
     ]:
@@ -1044,12 +1045,13 @@ class PhiDecoderLayer(nn.Module):
         )
         attn_outputs = self.resid_dropout(attn_outputs)
 
-        # Передаем input_ids в MoE слой, если это MoE, иначе обычный MLP
+        mlp_forward_args = {}
         if hasattr(self.mlp, 'forward') and 'input_ids' in self.mlp.forward.__code__.co_varnames:
-            feed_forward_hidden_states = self.resid_dropout(self.mlp(hidden_states, input_ids))
-        else:
-            feed_forward_hidden_states = self.resid_dropout(self.mlp(hidden_states))
-        hidden_states = attn_outputs + feed_forward_hidden_states + residual
+            mlp_forward_args['input_ids'] = input_ids
+        if hasattr(self.mlp, 'forward') and 'temperature' in self.mlp.forward.__code__.co_varnames:
+            mlp_forward_args['temperature'] = moe_temperature
+        ff = self.resid_dropout(self.mlp(hidden_states, **mlp_forward_args))
+        hidden_states = attn_outputs + ff + residual
         outputs = (hidden_states,)
 
         if output_attentions:
@@ -1118,6 +1120,7 @@ class PhiModel(PhiPreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        moe_temperature: Optional[float] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         output_attentions = (
             output_attentions
@@ -1224,6 +1227,7 @@ class PhiModel(PhiPreTrainedModel):
                     output_attentions=output_attentions,
                     use_cache=use_cache,
                     input_ids=input_ids,
+                    moe_temperature=moe_temperature,
                 )
 
             hidden_states = layer_outputs[0]
@@ -1315,6 +1319,7 @@ class PhiForCausalLM(PhiPreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        moe_temperature: Optional[float] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
@@ -1367,6 +1372,7 @@ class PhiForCausalLM(PhiPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            moe_temperature=moe_temperature,
         )
 
         hidden_states = outputs[0]

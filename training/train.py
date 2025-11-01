@@ -38,6 +38,8 @@ from training.prompting_utils import (
     create_attention_mask_for_mmu,
 )
 from models.lr_schedulers import get_scheduler
+import torch.nn as nn
+from torch.optim.lr_scheduler import SequentialLR, LinearLR, ExponentialLR
 from models.logger import set_verbosity_info, set_verbosity_error
 from moe_utils import patch_and_freeze_moe  # MoE support
 from training.eval_utils import (
@@ -98,6 +100,8 @@ def train_step(
     model,
     optimizer,
     lr_scheduler,
+    balance_scheduler,
+    temp_scheduler,
     accelerator,
     config,
     uni_prompting,
@@ -243,7 +247,7 @@ def train_step(
         # logger.info("Input ids: {}".format(input_ids))
         # logger.info("Labels: {}".format(labels))
 
-    # Forward pass
+    current_temperature = temp_scheduler.get_last_lr()[0]
     logits, loss_t2i, loss_lm, loss_mmu = model(
         input_ids=input_ids,
         input_embeddings=None,
@@ -254,6 +258,7 @@ def train_step(
         batch_size_lm=batch_size_lm,
         batch_size_mmu=batch_size_mmu,
         max_seq_length=config.dataset.preprocessing.max_seq_length,
+        moe_temperature=current_temperature,
     )
 
     # Gather the losses across all processes for logging (if we use distributed training).
@@ -272,8 +277,10 @@ def train_step(
         balance_loss, num_moe_layers = collect_moe_balance_losses(model)
         if num_moe_layers == 0:
             logger.warning(f"⚠️ MoE enabled but num_moe_layers = {num_moe_layers}")
-        balance_coeff = config.training.get("balance_coeff", 0.01)
+        balance_coeff = balance_scheduler.get_last_lr()[0]
+        print(f'balance_coeff: {balance_coeff}')
     else:
+        print(f'Setting balance_loss and balance_coeff to 0.0')
         balance_loss = torch.tensor(0.0, device=accelerator.device)
         balance_coeff = 0.0
 
@@ -303,6 +310,8 @@ def train_step(
 
     optimizer.step()
     lr_scheduler.step()
+    balance_scheduler.step()
+    temp_scheduler.step()
 
     # log gradient norm before zeroing it
     if (
@@ -340,6 +349,13 @@ def train_step(
             mlflow_run_id=mlflow_run_id,
             logger=logger,
         )
+
+        if mlflow_client is not None and mlflow_run_id is not None and config.get("moe", {}).get("enabled", False):
+            temperature = float(temp_scheduler.get_last_lr()[0])
+            mlflow_client.log_metric(mlflow_run_id, "moe/temperature", temperature, step=global_step + 1)
+            logger.info(f"[moe] temperature: {temperature:.4f}")
+            mlflow_client.log_metric(mlflow_run_id, "moe/balance_coeff", float(balance_coeff), step=global_step + 1)
+            logger.info(f"[moe] balance_coeff: {float(balance_coeff):.6f}")
 
         # Set global step for MoE layers
         if config.get("moe", {}).get("enabled", False):
@@ -629,6 +645,7 @@ def main():
     
         model = patch_and_freeze_moe(
             model,
+            count_layers_to_patch=config.moe["count_layers_to_patch"],
             num_experts=config.moe["num_experts"],
             top_k=config.moe["top_k"],
             mlflow_client=mlflow_client,
@@ -661,6 +678,33 @@ def main():
         num_training_steps=config.training.max_train_steps,
         num_warmup_steps=config.lr_scheduler.params.warmup_steps,
     )
+
+    balance_init_coeff = float(config.training["balance_coeff"])
+    balance_warmup_steps = (
+        config.moe["balance_warmup_steps"]
+    )
+    balance_gamma = float(config.moe["balance_gamma"])
+    _dummy_param = nn.Parameter(torch.zeros((), device=accelerator.device))
+    balance_optimizer = torch.optim.SGD([{"params": [_dummy_param], "lr": balance_init_coeff}])
+    balance_warmup = LinearLR(balance_optimizer, start_factor=1e-8, total_iters=max(int(balance_warmup_steps), 1))
+    balance_decay = ExponentialLR(balance_optimizer, gamma=float(balance_gamma))
+    balance_scheduler = SequentialLR(
+        balance_optimizer,
+        schedulers=[balance_warmup, balance_decay],
+        milestones=[max(int(balance_warmup_steps), 1)],
+    )
+
+    temp_start = float(config.moe["temp_start"]) if "temp_start" in config.moe else 100.0
+    temp_end = float(config.moe["temp_end"]) if "temp_end" in config.moe else 1.0
+    temp_steps = int(config.moe["temp_steps"]) if "temp_steps" in config.moe else int(config.training.max_train_steps)
+    _temp_dummy_param = nn.Parameter(torch.zeros((), device=accelerator.device))
+    temp_optimizer = torch.optim.SGD([{"params": [_temp_dummy_param], "lr": temp_start}])
+    def _linear_factor(step: int):
+        s = min(int(step), int(max(temp_steps, 1)))
+        a = s / max(temp_steps, 1)
+        return (1.0 - a) + a * (temp_end / max(temp_start, 1e-8))
+    from torch.optim.lr_scheduler import LambdaLR
+    temp_scheduler = LambdaLR(temp_optimizer, lr_lambda=_linear_factor)
 
     ##################################
     #         DATALOADER             #
@@ -771,6 +815,8 @@ def main():
                     model=model,
                     optimizer=optimizer,
                     lr_scheduler=lr_scheduler,
+                    balance_scheduler=balance_scheduler,
+                    temp_scheduler=temp_scheduler,
                     accelerator=accelerator,
                     config=config,
                     uni_prompting=uni_prompting,

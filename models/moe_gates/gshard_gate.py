@@ -14,11 +14,11 @@ class GShardGate(NaiveGate):
         self.capacity = capacity
         self.random_routing = random_routing
 
-    def forward(self, x):
+    def forward(self, x, temperature: float | None = None, return_all_scores: bool = False):
         naive_outs = super().forward(x, return_all_scores=True)
-        topk_idx, topk_val, gate_score = naive_outs
+        topk_idx, topk_val, gate_logits = naive_outs
 
-        S = gate_score.shape[0]
+        S = gate_logits.shape[0]
         top1_idx = topk_idx.view((-1, self.top_k))[:, 0]
         c_e = torch.scatter_add(
                 torch.zeros(self.tot_expert, device=top1_idx.device),
@@ -26,9 +26,15 @@ class GShardGate(NaiveGate):
                 top1_idx,
                 torch.ones_like(top1_idx, dtype=torch.float),
                 ) / S
-        m_e = torch.mean(F.softmax(gate_score, dim=1), dim=0)
+        m_e = torch.mean(F.softmax(gate_logits, dim=1), dim=0)
         loss = torch.mean(c_e * m_e) * (self.num_expert ** 2)
         self.set_loss(loss)
+
+        if temperature is not None:
+            tau = max(float(temperature), 1e-6)
+            probs = F.gumbel_softmax(gate_logits, tau=tau, hard=False, dim=1)  # [B, E_tot]
+            topk_prob, topk_idx = probs.topk(self.top_k, dim=1)
+            topk_val = topk_prob
 
         cap_rate = self.capacity[0 if self.training else 1]
         capacity = math.ceil(cap_rate * x.shape[0])
@@ -40,8 +46,16 @@ class GShardGate(NaiveGate):
                 self.num_expert, self.world_size)
 
         if self.random_routing:
-            rand_routing_prob = torch.rand(gate_score.size(0), device=x.device)
+            rand_routing_prob = torch.rand(gate_logits.size(0), device=x.device)
             mask = (2 * topk_val[:, 1] < rand_routing_prob)
             topk_idx[:, 1].masked_fill_(mask, -1)
 
+        if temperature is not None:
+            valid = (topk_idx >= 0).float()
+            topk_val = topk_val * valid
+            denom = topk_val.sum(dim=1, keepdim=True).clamp_min(1e-8)
+            topk_val = topk_val / denom
+
+        if return_all_scores:
+            return topk_idx, topk_val, gate_logits
         return topk_idx, topk_val

@@ -19,6 +19,8 @@ import logging
 import tempfile
 import os
 import mlflow
+from models.moe_gates.soft_router import SoftTopKRouter
+import copy
 from models.phi import PhiMLP, PhiConfig
 from models.moe_gates.naive_gate import NaiveGate
 from models.moe_gates.switch_gate import SwitchGate
@@ -80,7 +82,6 @@ class Stats:
 
 
 class SmallPhiMLP(nn.Module):
-    """PhiMLP для экспертов MoE (теперь полного размера)"""
     def __init__(self, config: PhiConfig, scale_factor: int = 1):
         super().__init__()
         self.config = config
@@ -100,45 +101,50 @@ class SmallPhiMLP(nn.Module):
 
 
 class MoE(nn.Module):
-    """Mixture of Experts слой"""
-    def __init__(self, num_experts, hidden_size, top_k, config: PhiConfig, gate_temperature=1.0):
+    def __init__(self, num_experts, hidden_size, top_k, config: PhiConfig, template_mlp: Optional[nn.Module] = None, noise_std: float = 1e-3):
         super().__init__()
-        # from models.moe_gates.naive_gate import NaiveGate
-        # self.gate = NaiveGate(hidden_size, num_experts, 1, top_k=top_k, gate_bias=True)
         self.gate = GShardGate(hidden_size, num_experts, world_size=4, top_k=top_k, gate_bias=True)
         self.num_experts = num_experts
         self.hidden_size = hidden_size
         self.top_k = top_k
-        self.gate_temperature = gate_temperature  # Температура для softmax gate
-        self.experts = nn.ModuleList([SmallPhiMLP(config, scale_factor=1) for _ in range(self.num_experts)])
+        self.experts = nn.ModuleList()
+        # Init experts from ffn
+        if template_mlp is not None:
+            for _ in range(self.num_experts):
+                expert = copy.deepcopy(template_mlp)
+                with torch.no_grad():
+                    for p in expert.parameters():
+                        p.add_(torch.randn_like(p) * noise_std)
+                self.experts.append(expert)
+        else:
+            self.experts = nn.ModuleList([SmallPhiMLP(config, scale_factor=1) for _ in range(self.num_experts)])
         self.alpha = nn.Parameter(torch.randn(self.num_experts))
         self._step_count = 0
-        self._log_frequency = 100  # Логируем каждые 10 шагов
-        self._global_step = 0  # Глобальный шаг для MLflow
-        self._layer_id = None  # ID слоя для уникального логирования
+        self._log_frequency = 100
+        self._global_step = 0
+        self._layer_id = None
+        self._soi_id = None
+        self._eoi_id = None
+        self._sov_id = None
+        self._eov_id = None
 
-        self._soi_id = None  # Start of Image
-        self._eoi_id = None  # End of Image
-        self._sov_id = None  # Start of Video
-        self._eov_id = None  # End of Video
+    def set_global_step(self, global_step):
+        self._global_step = global_step
 
-    def forward(self, hidden_states, input_ids=None):
+
+    def forward(self, hidden_states, input_ids=None, temperature: Optional[float] = None):
+        device = hidden_states.device
         batch_size, seq_len, hidden_size = hidden_states.shape
-        hidden_states_flat = hidden_states.view(-1, hidden_size)
-        
-        # Вызываем gate (работает с любым типом gate)
-        gate_idx, gate_score = self.gate(hidden_states_flat)
-        
-        self._step_count += 1
-        
-        # Логирование распределения гейтов (только периодически)
-        should_log = (self._step_count % self._log_frequency == 0)
-        if hasattr(self, '_log_gates') and self._log_gates and should_log:
-            self._log_gate_distribution(gate_idx, gate_score, input_ids)
-        
-        output_flat = torch.zeros_like(hidden_states_flat)
-        expert_stats = {}
-        
+        hidden_states_flat = hidden_states.view(-1, hidden_size)  # [B*L, H]
+        B = hidden_states_flat.shape[0]
+
+        # 1) Получаем top-k индексы и веса от гейта (вся логика роутинга внутри гейта)
+        gate_idx, gate_score = self.gate(hidden_states_flat, temperature=temperature)
+
+        # Баланс-лосс устанавливается внутри GShardGate; ничего дополнительно не считаем здесь
+
+        # 3) Считаем выход: сумма по экспертам с весами y_st * alpha (sparse по маскам)
+        out_flat = torch.zeros(B, hidden_size, device=device, dtype=hidden_states.dtype)
         for k in range(self.top_k):
             expert_indices = gate_idx[:, k]
             weights = gate_score[:, k]
@@ -148,39 +154,16 @@ class MoE(nn.Module):
                     expert_input = hidden_states_flat[mask]
                     expert_output = self.experts[expert_id](expert_input)
                     weight = weights[mask] * self.alpha[expert_id]
-                    output_flat[mask] += expert_output * weight.unsqueeze(-1)
-                    
-                    if hasattr(self, '_log_activations') and self._log_activations and should_log:
-                        input_abs = torch.abs(expert_input)
-                        output_abs = torch.abs(expert_output)
-                        
-                        expert_stats[expert_id] = {
-                            'input_min': expert_input.min().item(),
-                            'input_max': expert_input.max().item(),
-                            'input_mean': expert_input.mean().item(),
-                            'input_abs_min': input_abs.min().item(),
-                            'input_abs_max': input_abs.max().item(),
-                            'input_abs_mean': input_abs.mean().item(),
-                            'output_min': expert_output.min().item(),
-                            'output_max': expert_output.max().item(),
-                            'output_mean': expert_output.mean().item(),
-                            'output_abs_min': output_abs.min().item(),
-                            'output_abs_max': output_abs.max().item(),
-                            'output_abs_mean': output_abs.mean().item(),
-                            'weight_min': weight.min().item(),
-                            'weight_max': weight.max().item(),
-                            'weight_mean': weight.mean().item(),
-                            'alpha': self.alpha[expert_id].item(),
-                            'num_tokens': mask.sum().item()
-                        }
-        if hasattr(self, '_log_activations') and self._log_activations and should_log and expert_stats:
-            self._log_activation_stats(expert_stats)
-        
-        result = output_flat.view(batch_size, seq_len, hidden_size)
-        return result
+                    out_flat[mask] += expert_output * weight.unsqueeze(-1)
 
+        output = out_flat.view(batch_size, seq_len, hidden_size)
+        self._step_count += 1
+        should_log = (self._step_count % self._log_frequency == 0)
+        if hasattr(self, '_log_gates') and self._log_gates and should_log:
+            self._log_gate_distribution(gate_idx, gate_score.detach(), input_ids)
+
+        return output
     def _log_gate_distribution(self, gate_idx, gate_score, input_ids=None):
-        """Логирует распределение гейтов с разделением по модальностям"""
         import logging
         logger = logging.getLogger(__name__)
         
@@ -435,7 +418,6 @@ class MoE(nn.Module):
         return buf.getvalue()
 
     def _log_to_mlflow_activations(self, expert_stats):
-        """Логирует метрики активаций в MLflow"""
         try:
             # Используем переданный client или создаем новый
             if hasattr(self, '_mlflow_client') and hasattr(self, '_mlflow_run_id'):
@@ -444,63 +426,13 @@ class MoE(nn.Module):
             else:
                 import mlflow
                 from mlflow.tracking import MlflowClient
-                
                 # Получаем текущий run_id
                 run_id = mlflow.active_run().info.run_id if mlflow.active_run() else None
                 if run_id is None:
                     return
-                
                 client = MlflowClient()
-            
-            # Логируем детальные метрики активаций для каждого эксперта
-            layer_prefix = f"moe/layer_{self._layer_id}"
-            
-            if expert_stats:
-                # Логируем статистики для каждого эксперта отдельно
-                for expert_id, stats in expert_stats.items():
-                    expert_prefix = f"{layer_prefix}/expert_{expert_id}"
-                    
-                    # Статистики входных активаций
-                    client.log_metric(run_id, f"{expert_prefix}/input_min", stats['input_min'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/input_max", stats['input_max'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/input_mean", stats['input_mean'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/input_abs_min", stats['input_abs_min'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/input_abs_max", stats['input_abs_max'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/input_abs_mean", stats['input_abs_mean'], step=self._global_step)
-                    
-                    # Статистики выходных активаций
-                    client.log_metric(run_id, f"{expert_prefix}/output_min", stats['output_min'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/output_max", stats['output_max'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/output_mean", stats['output_mean'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/output_abs_min", stats['output_abs_min'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/output_abs_max", stats['output_abs_max'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/output_abs_mean", stats['output_abs_mean'], step=self._global_step)
-                    
-                    # Дополнительные метрики
-                    client.log_metric(run_id, f"{expert_prefix}/alpha", stats['alpha'], step=self._global_step)
-                    client.log_metric(run_id, f"{expert_prefix}/num_tokens", stats['num_tokens'], step=self._global_step)
-                
-                # Агрегированные метрики по всем экспертам
-                all_input_mins = [stats['input_min'] for stats in expert_stats.values()]
-                all_input_maxs = [stats['input_max'] for stats in expert_stats.values()]
-                all_output_mins = [stats['output_min'] for stats in expert_stats.values()]
-                all_output_maxs = [stats['output_max'] for stats in expert_stats.values()]
-                all_input_abs_mins = [stats['input_abs_min'] for stats in expert_stats.values()]
-                all_input_abs_maxs = [stats['input_abs_max'] for stats in expert_stats.values()]
-                all_output_abs_mins = [stats['output_abs_min'] for stats in expert_stats.values()]
-                all_output_abs_maxs = [stats['output_abs_max'] for stats in expert_stats.values()]
-                all_alphas = [stats['alpha'] for stats in expert_stats.values()]
-                all_tokens = [stats['num_tokens'] for stats in expert_stats.values()]
-                
-                # Логируем агрегированные метрики
-                client.log_metric(run_id, f"{layer_prefix}/input_range", max(all_input_maxs) - min(all_input_mins), step=self._global_step)
-                client.log_metric(run_id, f"{layer_prefix}/output_range", max(all_output_maxs) - min(all_output_mins), step=self._global_step)
-                client.log_metric(run_id, f"{layer_prefix}/input_abs_range", max(all_input_abs_maxs) - min(all_input_abs_mins), step=self._global_step)
-                client.log_metric(run_id, f"{layer_prefix}/output_abs_range", max(all_output_abs_maxs) - min(all_output_abs_mins), step=self._global_step)
-                client.log_metric(run_id, f"{layer_prefix}/alpha_mean", sum(all_alphas) / len(all_alphas), step=self._global_step)
-                client.log_metric(run_id, f"{layer_prefix}/total_tokens", sum(all_tokens), step=self._global_step)
-                client.log_metric(run_id, f"{layer_prefix}/active_experts", len(expert_stats), step=self._global_step)
-            
+            # Только гистограммы по-прежнему должны логироваться (см. другое место вызова)
+            pass
         except Exception as e:
             # Игнорируем ошибки MLflow, чтобы не прерывать обучение
             pass
@@ -541,50 +473,35 @@ class MoE(nn.Module):
         return buf.getvalue()
 
 
-def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2, special_tokens=None):
-    print(f"🔧 Патчим модель с MoE (experts={num_experts}, top_k={top_k})...")
+def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2, special_tokens=None, noise_std: float = 1e-2,
+    temp_init: float = 100.0, temp_warmup_steps: int = 500, temp_gamma: float = 0.98, temp_min: float = 1.0):
+    total_layers = len(model.showo.model.layers)
+    print(f"🔧 Патчим модель с MoE:")
+    print(f"   Всего слоев в модели: {total_layers}")
+    print(f"   Количество экспертов: {num_experts}")
+    print(f"   Top-K: {top_k}")
+    print(f"   Слоев для патчинга: {count_layers_to_patch}")
     config_phi = model.showo.config
-    
+    patched_layers = []
     for layer_idx, layer in list(enumerate(model.showo.model.layers))[::-1]:
         if count_layers_to_patch == 0:
             break
         if hasattr(layer, 'mlp'):
             print(f"  → Слой {layer_idx}")
+            patched_layers.append(layer_idx)
             original_mlp = layer.mlp
-            
             moe_layer = MoE(
                 num_experts=num_experts,
                 hidden_size=config_phi.hidden_size,
                 top_k=top_k,
                 config=config_phi,
-                gate_temperature=2.0  # Увеличена температура для более равномерного распределения
+                template_mlp=original_mlp,
+                noise_std=noise_std
             )
-            
-            # Инициализируем веса экспертов из оригинального FFN с небольшим шумом
-            print(f"    Копируем веса из оригинального FFN в {num_experts} экспертов с шумом...")
-            for expert_idx, expert in enumerate(moe_layer.experts):
-                with torch.no_grad():
-                    # Копируем fc1
-                    expert.fc1.weight.copy_(original_mlp.fc1.weight)
-                    expert.fc1.bias.copy_(original_mlp.fc1.bias)
-                    # Добавляем шум (5% от стандартного отклонения весов)
-                    # Увеличен с 0.001 до 0.05 для лучшей диверсификации экспертов
-                    noise_scale = 0.1
-                    expert.fc1.weight.add_(torch.randn_like(expert.fc1.weight) * expert.fc1.weight.std() * noise_scale)
-                    expert.fc1.bias.add_(torch.randn_like(expert.fc1.bias) * expert.fc1.bias.std() * noise_scale)
-                    
-                    # Копируем fc2
-                    expert.fc2.weight.copy_(original_mlp.fc2.weight)
-                    expert.fc2.bias.copy_(original_mlp.fc2.bias)
-                    # Добавляем шум
-                    expert.fc2.weight.add_(torch.randn_like(expert.fc2.weight) * expert.fc2.weight.std() * noise_scale)
-                    expert.fc2.bias.add_(torch.randn_like(expert.fc2.bias) * expert.fc2.bias.std() * noise_scale)
-            
-            # Включаем логирование для MoE слоя
+            moe_layer.to(next(original_mlp.parameters()).device)
+            print(f"    Инициализированы {num_experts} экспертов как копии FFN + шум (std={noise_std})")
             moe_layer.enable_logging(log_gates=True, log_activations=True, log_frequency=100)
             moe_layer.set_layer_id(layer_idx)
-            
-            # Устанавливаем специальные токены для определения модальности
             if special_tokens is not None:
                 moe_layer.set_special_tokens(
                     soi_id=special_tokens.get('soi_id'),
@@ -592,11 +509,12 @@ def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2,
                     sov_id=special_tokens.get('sov_id'),
                     eov_id=special_tokens.get('eov_id')
                 )
-            
             layer.mlp = moe_layer
             count_layers_to_patch -= 1
-    
     print("✓ Патчинг завершен")
+    print(f"✓ Заменено слоев: {len(patched_layers)} из {total_layers} ({100*len(patched_layers)/total_layers:.1f}%)")
+    print(f"✓ Слои с MoE: {patched_layers}")
+    print(f"✓ Слои с оригинальным FFN (предобученным): {[i for i in range(total_layers) if i not in patched_layers]}")
     return model
 
 
@@ -654,14 +572,27 @@ def freeze_non_moe_params(model):
     return model
 
 
-def patch_and_freeze_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2, mlflow_client=None, mlflow_run_id=None, special_tokens=None):
-    model = patch_model_with_moe(model, count_layers_to_patch, num_experts, top_k, special_tokens)
+def patch_and_freeze_moe(
+    model,
+    count_layers_to_patch: int = 3, 
+    num_experts: int = 8, 
+    top_k: int = 2, 
+    mlflow_client: Optional[mlflow.client.MlflowClient] = None,
+    mlflow_run_id: Optional[str] = None,
+    special_tokens: Optional[dict] = None,
+    noise_std: float = 1e-2,
+    temp_init: float = 100.0,
+    temp_warmup_steps: int = 500,
+    temp_gamma: float = 0.98,
+    temp_min: float = 1
+):
+    model = patch_model_with_moe(model, count_layers_to_patch, num_experts, top_k, special_tokens, noise_std=noise_std,
+        temp_init=temp_init, temp_warmup_steps=temp_warmup_steps, temp_gamma=temp_gamma, temp_min=temp_min)
     if mlflow_client is not None and mlflow_run_id is not None:
         for layer in model.showo.model.layers:
             if hasattr(layer, 'mlp') and hasattr(layer.mlp, 'experts'):
                 layer.mlp._mlflow_client = mlflow_client
                 layer.mlp._mlflow_run_id = mlflow_run_id
-    
     model = freeze_non_moe_params(model)
     return model
 

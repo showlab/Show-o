@@ -12,7 +12,7 @@ logger = get_logger(__name__, log_level="INFO")
 def save_checkpoint(model, config, accelerator, global_step):
     output_dir = config.experiment.output_dir
     checkpoints_total_limit = config.experiment.get("checkpoints_total_limit", None)
-    save_moe_only = config.get("moe", {}).get("save_only_moe_weights", True)
+    save_moe_only = config.get("moe", {}).get("save_only_moe_weights", False)
 
     # _before_ saving state, check if this save would set us over the `checkpoints_total_limit`
     if accelerator.is_main_process and checkpoints_total_limit is not None:
@@ -60,4 +60,69 @@ def save_checkpoint(model, config, accelerator, global_step):
             logger.info(f"Saved full model to {save_path}")
         
         json.dump({"global_step": global_step}, (save_path / "metadata.json").open("w+"))
+
+
+def load_checkpoint(model, config, accelerator, checkpoint_path):
+    """
+    Загружает чекпоинт модели
+    
+    Args:
+        model: Модель для загрузки весов
+        config: Конфигурация
+        accelerator: Accelerator объект
+        checkpoint_path: Путь к чекпоинту (например, "output/showo-vanilla-mmu/checkpoint-24000")
+    
+    Returns:
+        global_step: Номер шага из чекпоинта
+    """
+    save_moe_only = config.get("moe", {}).get("save_only_moe_weights", False)
+    moe_enabled = config.get("moe", {}).get("enabled", False)
+    
+    checkpoint_path = Path(checkpoint_path)
+    
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+    
+    # Загружаем метаданные
+    metadata_path = checkpoint_path / "metadata.json"
+    if metadata_path.exists():
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+        global_step = metadata.get("global_step", 0)
+    else:
+        global_step = 0
+        logger.warning(f"No metadata.json found in {checkpoint_path}, assuming step 0")
+    
+    if save_moe_only and moe_enabled:
+        # Загружаем только MoE веса
+        moe_weights_path = checkpoint_path / "moe_weights.pt"
+        if moe_weights_path.exists():
+            moe_state_dict = torch.load(moe_weights_path, map_location="cpu")
+            model.load_state_dict(moe_state_dict, strict=False)
+            logger.info(f"💾 Loaded {len(moe_state_dict)} MoE parameters from {moe_weights_path}")
+        else:
+            raise FileNotFoundError(f"MoE weights not found: {moe_weights_path}")
+    else:
+        # Загружаем полную модель
+        model_path = checkpoint_path / "unwrapped_model"
+        if model_path.exists():
+            # Проверяем, есть ли pytorch_model.bin
+            pytorch_model_path = model_path / "pytorch_model.bin"
+            if pytorch_model_path.exists():
+                state_dict = torch.load(pytorch_model_path, map_location="cpu")
+                model.load_state_dict(state_dict, strict=False)
+                logger.info(f"💾 Loaded full model from {pytorch_model_path}")
+            else:
+                # Пытаемся загрузить через from_pretrained
+                try:
+                    model = model.__class__.from_pretrained(model_path)
+                    logger.info(f"💾 Loaded full model from {model_path}")
+                except Exception as e:
+                    logger.error(f"Failed to load model from {model_path}: {e}")
+                    raise
+        else:
+            raise FileNotFoundError(f"Model not found: {model_path}")
+    
+    logger.info(f"✅ Checkpoint loaded successfully from {checkpoint_path} (step {global_step})")
+    return global_step
 
