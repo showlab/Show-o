@@ -21,12 +21,23 @@ experiment:
     resume_from_checkpoint: false  # ✅ Не загружаем старый checkpoint с NaN
 
 moe:
-    enabled: true  # ✅ Выключаем MoE, так как код закомментирован
-    num_experts: 8
+    enabled: true
+    num_experts: 8  
     top_k: 2
-    save_only_moe_weights: true
+    count_layers_to_patch: 6
+    save_only_moe_weights: false
     activation_stats:
         collect_frequency: 5
+
+    temp_start: 10
+    temp_end: 0.01
+    temp_steps: 20000
+    balance_warmup_steps: 1000
+    balance_gamma: 0.999
+    modality_init_hardness: 1.0
+    modality_init_steps: 1000  # Увеличили с 1000 до 10000 для более длинного warmup
+    modality_init_hardness_min: 0.0  # Минимальное значение hardness (20% от начального)
+    use_gumbel: false  # Использовать Gumbel-Softmax для soft top-k routing
 
 model:
     vq_model:
@@ -66,9 +77,9 @@ dataset:
 optimizer:
     name: adamw
     params: # default adamw params
-        learning_rate: 0.00001  # ✅ Увеличили для vanilla (без MoE)
-        moe_learning_rate: 0.0001  # отдельный lr для MoE слоев (пока не используется)
-        scale_lr: False # scale learning rate by total batch size
+        learning_rate: 0.0001  # ✅ Увеличили для vanilla (без MoE)
+        moe_learning_rate: 0.00001  # отдельный lr для MoE слоев (пока не используется)
+        scale_lr: False
         beta1: 0.9
         beta2: 0.999
         weight_decay: 0.01
@@ -83,9 +94,9 @@ lr_scheduler:
 training:
     gradient_accumulation_steps: 1
     noise_type: "mask"
-    batch_size_t2i: 16 # ✅ Увеличили для стабильности
+    batch_size_t2i: 8 
     batch_size_lm: 1
-    batch_size_mmu: 16  # ✅ Увеличили для стабильности
+    batch_size_mmu: 8
     mixed_precision: "bf16"
     enable_tf32: True
     seed: 10086
@@ -93,7 +104,7 @@ training:
     overfit_one_batch: False
     cond_dropout_prob: 0.1
     min_masking_rate: 0.0
-    label_smoothing: 0.1  # ✅ Добавили для стабильности
+    label_smoothing: 0.0
     max_grad_norm: 1.0
     guidance_scale: 3.0
     generation_timesteps: 18
@@ -101,4 +112,4 @@ training:
     lm_coeff: 0.0
     mmu_coeff: 1.0
 
-    balance_coeff: 4.0  # ✅ MoE выключен
+    balance_coeff: 0.01

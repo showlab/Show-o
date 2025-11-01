@@ -1,33 +1,27 @@
-"""
-Утилиты для добавления MoE в модель Show-o
-Минимальный код для патчинга и обучения
-
-Использование:
-    from moe_utils import patch_and_freeze_moe
-    
-    model = Showo.from_pretrained("showlab/show-o-w-clip-vit")
-    model = patch_and_freeze_moe(model, num_experts=4, top_k=2)
-"""
-
-import torch
-import torch.nn as nn
-import matplotlib.pyplot as plt
-import numpy as np
+import json
+import os
+import tempfile
 import io
 import base64
 import logging
-import tempfile
-import os
-import mlflow
-from models.moe_gates.soft_router import SoftTopKRouter
 import copy
+from collections import defaultdict
+from typing import List, Dict, Optional
+
+import mlflow
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import torch
+import torch.nn as nn
+from mlflow.tracking import MlflowClient
+
+from models.moe_gates.soft_router import SoftTopKRouter
 from models.phi import PhiMLP, PhiConfig
 from models.moe_gates.naive_gate import NaiveGate
 from models.moe_gates.switch_gate import SwitchGate
 from models.moe_gates.faster_gate import FasterGate
 from models.moe_gates.gshard_gate import GShardGate
-from collections import defaultdict
-from typing import List, Dict, Optional
 
 
 logger = logging.getLogger(__name__)
@@ -101,14 +95,34 @@ class SmallPhiMLP(nn.Module):
 
 
 class MoE(nn.Module):
-    def __init__(self, num_experts, hidden_size, top_k, config: PhiConfig, template_mlp: Optional[nn.Module] = None, noise_std: float = 1e-3):
+    def __init__(self, num_experts, hidden_size, top_k, config: PhiConfig, template_mlp: Optional[nn.Module] = None, noise_std: float = 1e-3,
+                 modality_init_hardness: float = 1.0, modality_init_steps: int = 1000, modality_init_hardness_min: float = 0.2,
+                 use_gumbel: bool = False):
         super().__init__()
-        self.gate = GShardGate(hidden_size, num_experts, world_size=4, top_k=top_k, gate_bias=True)
+        self.gate = GShardGate(hidden_size, num_experts, world_size=4, top_k=top_k, gate_bias=True, use_gumbel=use_gumbel)
         self.num_experts = num_experts
         self.hidden_size = hidden_size
         self.top_k = top_k
+        # Модальность-специфичная инициализация: первые num_experts//2 для текста, вторые для изображений
+        num_text_experts = num_experts // 2
+        # Bias для логитов гейта: большие значения для "правильных" экспертов
+        tot_expert = num_experts * 4  # world_size=4
+        self.register_buffer('modality_bias_text', torch.zeros(tot_expert))
+        self.register_buffer('modality_bias_image', torch.zeros(tot_expert))
+        # Первые num_text_experts экспертов на каждом шарде получают +bias для текста
+        # Вторые num_text_experts — для изображений
+        init_bias_val = 10.0  # Большой bias для жесткого разделения
+        for rank in range(4):  # world_size=4
+            start_text = rank * num_experts
+            end_text = start_text + num_text_experts
+            start_image = end_text
+            end_image = start_image + num_text_experts
+            self.modality_bias_text[start_text:end_text] = init_bias_val
+            self.modality_bias_image[start_image:end_image] = init_bias_val
+        self.modality_init_hardness = float(modality_init_hardness)
+        self.modality_init_steps = int(modality_init_steps)
+        self.modality_init_hardness_min = float(modality_init_hardness_min)
         self.experts = nn.ModuleList()
-        # Init experts from ffn
         if template_mlp is not None:
             for _ in range(self.num_experts):
                 expert = copy.deepcopy(template_mlp)
@@ -127,6 +141,9 @@ class MoE(nn.Module):
         self._eoi_id = None
         self._sov_id = None
         self._eov_id = None
+        # История распределений гейтов для heatmap: {step: {expert_id: count}}
+        self._gate_distribution_history = {}
+        self._modality_gate_distribution_history = {}  # {modality_name: {step: {expert_id: count}}}
 
     def set_global_step(self, global_step):
         self._global_step = global_step
@@ -138,12 +155,33 @@ class MoE(nn.Module):
         hidden_states_flat = hidden_states.view(-1, hidden_size)  # [B*L, H]
         B = hidden_states_flat.shape[0]
 
-        # 1) Получаем top-k индексы и веса от гейта (вся логика роутинга внутри гейта)
-        gate_idx, gate_score = self.gate(hidden_states_flat, temperature=temperature)
+        # Определяем модальность и применяем bias для инициализации
+        modality_bias = None
+        if input_ids is not None and self.modality_init_hardness > 0:
+            # Вычисляем текущую hardness (линейное уменьшение от max до min)
+            # Не убираем bias полностью - оставляем минимальное значение для мягкого сигнала
+            if self._global_step < self.modality_init_steps:
+                # Линейное уменьшение от max до min за modality_init_steps шагов
+                progress = self._global_step / max(self.modality_init_steps, 1)
+                hardness = self.modality_init_hardness - (self.modality_init_hardness - self.modality_init_hardness_min) * progress
+            else:
+                hardness = self.modality_init_hardness_min
+            
+            if hardness > 0:
+                modality = self._get_token_modality(input_ids.view(-1))
+                if modality is not None:
+                    # Для текстовых токенов (modality == 0) используем text bias, для изображений (== 1) — image bias
+                    text_mask = (modality == 0)
+                    image_mask = (modality == 1)
+                    # Создаем bias для каждого токена: [B, E_tot]
+                    modality_bias = torch.zeros(B, self.modality_bias_text.size(0), device=device, dtype=hidden_states.dtype)
+                    if text_mask.any():
+                        modality_bias[text_mask] = self.modality_bias_text.unsqueeze(0) * hardness
+                    if image_mask.any():
+                        modality_bias[image_mask] = self.modality_bias_image.unsqueeze(0) * hardness
+                    # Передаем per-token bias для корректного routing
 
-        # Баланс-лосс устанавливается внутри GShardGate; ничего дополнительно не считаем здесь
-
-        # 3) Считаем выход: сумма по экспертам с весами y_st * alpha (sparse по маскам)
+        gate_idx, gate_score = self.gate(hidden_states_flat, temperature=temperature, modality_bias=modality_bias)
         out_flat = torch.zeros(B, hidden_size, device=device, dtype=hidden_states.dtype)
         for k in range(self.top_k):
             expert_indices = gate_idx[:, k]
@@ -177,37 +215,129 @@ class MoE(nn.Module):
             expert_counts[expert_id] = count
         
         total_activations = sum(expert_counts.values())
+        
+        # Всегда сохраняем данные (даже если total_activations == 0)
+        self._gate_distribution_history[self._global_step] = expert_counts.copy()
+        self._save_distribution_to_json(expert_counts, "overall")
+        
+        # Сохраняем expert_counts для text и image
+        text_expert_counts = None
+        image_expert_counts = None
+        
+        if modality is not None:
+            text_mask = (modality == 0)
+            image_mask = (modality == 1)
+            video_mask = (modality == 2)
+            
+            modalities = [
+                ("text", text_mask),
+                ("image", image_mask),
+                ("video", video_mask)
+            ]
+            
+            for modality_name, mask in modalities:
+                if mask.any():
+                    modality_gate_idx = gate_idx[mask]
+                    modality_gate_score = gate_score[mask]
+                    modality_expert_counts = {}
+                    for expert_id in range(self.num_experts):
+                        count = (modality_gate_idx == expert_id).sum().item()
+                        modality_expert_counts[expert_id] = count
+                    
+                    modality_total = sum(modality_expert_counts.values())
+                    
+                    # Всегда сохраняем данные
+                    if modality_name not in self._modality_gate_distribution_history:
+                        self._modality_gate_distribution_history[modality_name] = {}
+                    self._modality_gate_distribution_history[modality_name][self._global_step] = modality_expert_counts.copy()
+                    self._save_distribution_to_json(modality_expert_counts, modality_name)
+                    
+                    if modality_name == "text":
+                        text_expert_counts = modality_expert_counts
+                    elif modality_name == "image":
+                        image_expert_counts = modality_expert_counts
+                    
+                    # Логируем метрики
+                    if modality_total > 0:
+                        self._log_to_mlflow_modality_gates(
+                            modality_expert_counts, modality_total, modality_gate_score, modality_name
+                        )
+        
+        # Логируем метрики overall
         if total_activations > 0:
             self._log_to_mlflow_gates(expert_counts, total_activations, gate_score)
-            if modality is not None:
-                self._log_modality_specific_gates(gate_idx, gate_score, modality)
+        
+        # Создаем и отправляем все графики одновременно
+        self._log_all_plots_to_mlflow(
+            overall_expert_counts=expert_counts,
+            overall_gate_score=gate_score,
+            text_expert_counts=text_expert_counts,
+            image_expert_counts=image_expert_counts
+        )
     
-    def _log_modality_specific_gates(self, gate_idx, gate_score, modality):
-        """Логирует распределение гейтов отдельно для каждой модальности"""
-        import logging
-        logger = logging.getLogger(__name__)
-        text_mask = (modality == 0)
-        image_mask = (modality == 1)
-        video_mask = (modality == 2)
+    
+    def _log_all_plots_to_mlflow(self, overall_expert_counts, overall_gate_score, 
+                                   text_expert_counts=None, image_expert_counts=None):
+        """Создает все графики одновременно и отправляет их в MLflow за один раз.
+        Всегда создает графики, даже если данных нет (показывает "No data")."""
+        # Получаем client и run_id
+        if hasattr(self, '_mlflow_client') and hasattr(self, '_mlflow_run_id'):
+            client = self._mlflow_client
+            run_id = self._mlflow_run_id
+        else:
+            run_id = mlflow.active_run().info.run_id if mlflow.active_run() else None
+            if run_id is None:
+                return
+            client = MlflowClient()
         
-        modalities = [
-            ("text", text_mask),
-            ("image", image_mask),
-            ("video", video_mask)
-        ]
+        layer_prefix = f"moe/layer_{self._layer_id}" if self._layer_id is not None else "moe"
+        temp_dir = tempfile.mkdtemp()
         
-        for modality_name, mask in modalities:
-            if mask.any():
-                modality_gate_idx = gate_idx[mask]
-                modality_gate_score = gate_score[mask]
-                expert_counts = {}
-                for expert_id in range(self.num_experts):
-                    count = (modality_gate_idx == expert_id).sum().item()
-                    expert_counts[expert_id] = count
-                
-                total_activations = sum(expert_counts.values())
-                if total_activations > 0:
-                    self._log_to_mlflow_modality_gates(expert_counts, total_activations, modality_gate_score, modality_name)
+        try:
+            # 1. Создаем overall heatmap (всегда создаем)
+            overall_heatmap_bytes = self._create_distribution_heatmap(
+                self._gate_distribution_history, "overall"
+            )
+            
+            # 2. Создаем overall expert histogram (всегда создаем)
+            overall_histogram_bytes = self._create_expert_activation_histogram(overall_expert_counts)
+            
+            # 3. Создаем combined plot (text + image) (всегда создаем)
+            text_history = self._modality_gate_distribution_history.get("text", {})
+            image_history = self._modality_gate_distribution_history.get("image", {})
+            combined_plot_bytes = self._create_modality_combined_plot(
+                text_history=text_history if text_history else None,
+                image_history=image_history if image_history else None,
+                text_expert_counts=text_expert_counts,
+                image_expert_counts=image_expert_counts
+            )
+            
+            # Отправляем все графики в MLflow (всегда отправляем)
+            tmp_file = os.path.join(temp_dir, f"gate_distribution_heatmap_step_{self._global_step}.png")
+            with open(tmp_file, 'wb') as f:
+                f.write(overall_heatmap_bytes)
+            client.log_artifact(run_id, tmp_file, layer_prefix)
+            print(f"📊 Heatmap распределений (overall) отправлена в MLflow: {layer_prefix}/gate_distribution_heatmap_step_{self._global_step}.png")
+            
+            tmp_file = os.path.join(temp_dir, f"expert_token_counts_step_{self._global_step}.png")
+            with open(tmp_file, 'wb') as f:
+                f.write(overall_histogram_bytes)
+            client.log_artifact(run_id, tmp_file, layer_prefix)
+            print(f"📊 Количество токенов по экспертам отправлено: {layer_prefix}/expert_token_counts_step_{self._global_step}.png")
+            
+            tmp_file = os.path.join(temp_dir, f"gate_distribution_combined_text_image_step_{self._global_step}.png")
+            with open(tmp_file, 'wb') as f:
+                f.write(combined_plot_bytes)
+            client.log_artifact(run_id, tmp_file, layer_prefix)
+            print(f"📊 Объединенный график (text + image) отправлен в MLflow: {layer_prefix}/gate_distribution_combined_text_image_step_{self._global_step}.png")
+        
+        except Exception as e:
+            print(f"❌ Ошибка логирования графиков: {e}")
+        finally:
+            # Очистка временных файлов
+            for f in os.listdir(temp_dir):
+                os.unlink(os.path.join(temp_dir, f))
+            os.rmdir(temp_dir)
 
     def _log_activation_stats(self, expert_stats):
         self._log_to_mlflow_activations(expert_stats)
@@ -306,53 +436,23 @@ class MoE(nn.Module):
             client.log_metric(run_id, f"{layer_prefix}/gate_weights_std", gate_score.std().item(), step=self._global_step)
             
             # Общая гистограмма весов гейтов удалена - нужны только модальность-специфичные
-            
-            # Создаем и отправляем гистограмму активаций экспертов
-            expert_histogram_bytes = self._create_expert_activation_histogram(expert_counts)
-            
-            # Логируем гистограмму активаций экспертов
-            try:
-                # Создаем файл с правильным именем
-                temp_dir = tempfile.mkdtemp()
-                tmp_file_path = os.path.join(temp_dir, f"expert_token_counts_step_{self._global_step}.png")
-                
-                with open(tmp_file_path, 'wb') as f:
-                    f.write(expert_histogram_bytes)
-                
-                client.log_artifact(run_id, tmp_file_path, layer_prefix)
-                print(f"📊 Количество токенов по экспертам отправлено: {layer_prefix}/expert_token_counts_step_{self._global_step}.png")
-            except Exception as artifact_error:
-                print(f"⚠️ Не удалось отправить гистограмму экспертов: {artifact_error}")
-                # Fallback: сохраняем локально
-                artifacts_dir = f"./mlruns/artifacts/{layer_prefix}"
-                os.makedirs(artifacts_dir, exist_ok=True)
-                local_path = f"{artifacts_dir}/expert_activations_histogram_step_{self._global_step}.png"
-                with open(local_path, 'wb') as f:
-                    f.write(expert_histogram_bytes)
-                print(f"📊 Гистограмма экспертов сохранена локально: {local_path}")
-            finally:
-                os.unlink(tmp_file_path)
-                os.rmdir(temp_dir)
+            # Графики теперь логируются через _log_all_plots_to_mlflow
             
         except Exception as e:
             # Игнорируем ошибки MLflow, чтобы не прерывать обучение
-            print(f"❌ Ошибка логирования гистограммы: {e}")
+            pass
     
     def _log_to_mlflow_modality_gates(self, expert_counts, total_activations, gate_score, modality_name):
         if hasattr(self, '_mlflow_client') and hasattr(self, '_mlflow_run_id'):
             client = self._mlflow_client
             run_id = self._mlflow_run_id
         else:
-            from mlflow.tracking import MlflowClient
-            
-            # Получаем текущий run_id
             run_id = mlflow.active_run().info.run_id if mlflow.active_run() else None
             if run_id is None:
                 return
-            
             client = MlflowClient()
         
-        # Логируем метрики для конкретной модальности
+        # Логируем только метрики для конкретной модальности (без графиков)
         layer_prefix = f"moe/layer_{self._layer_id}/{modality_name}"
         
         # Агрегированная статистика экспертов для данной модальности
@@ -364,58 +464,140 @@ class MoE(nn.Module):
         client.log_metric(run_id, f"{layer_prefix}/gate_weights_mean", gate_score.mean().item(), step=self._global_step)
         client.log_metric(run_id, f"{layer_prefix}/gate_weights_std", gate_score.std().item(), step=self._global_step)
         
-        # Создаем и отправляем гистограмму для данной модальности
-        histogram_bytes = self._create_modality_histogram(gate_score, modality_name)
-        
-        # Исправленный способ логирования изображений
-        # Создаем файл с правильным именем
-        temp_dir = tempfile.mkdtemp()
-        tmp_file_path = os.path.join(temp_dir, f"gate_distribution_{modality_name}_step_{self._global_step}.png")
-        
-        with open(tmp_file_path, 'wb') as f:
-            f.write(histogram_bytes)
-        
-        client.log_artifact(run_id, tmp_file_path, layer_prefix)
-        print(f"📊 Распределение гейтов {modality_name} отправлено: {layer_prefix}/gate_distribution_{modality_name}_step_{self._global_step}.png")
-        expert_histogram_bytes = self._create_expert_activation_histogram(expert_counts)
-        emp_dir = tempfile.mkdtemp()
-        tmp_file_path = os.path.join(temp_dir, f"expert_token_counts_{modality_name}_step_{self._global_step}.png")
-        
-        with open(tmp_file_path, 'wb') as f:
-            f.write(expert_histogram_bytes)
-        
-        client.log_artifact(run_id, tmp_file_path, layer_prefix)
-        print(f"📊 Количество токенов по экспертам {modality_name} отправлено: {layer_prefix}/expert_token_counts_{modality_name}_step_{self._global_step}.png")
     
+    def _save_distribution_to_json(self, expert_counts, modality_name="overall"):
+        json_dir = "./gate_distributions"
+        if self._layer_id is not None:
+            json_dir = os.path.join(json_dir, f"layer_{self._layer_id}")
+        os.makedirs(json_dir, exist_ok=True)
+        filename = f"gate_distribution_{modality_name}_step_{self._global_step}.json"
+        filepath = os.path.join(json_dir, filename)
+        data = {
+            "step": self._global_step,
+            "layer_id": self._layer_id,
+            "modality": modality_name,
+            "expert_counts": expert_counts,
+            "total_activations": sum(expert_counts.values())
+        }
+        with open(filepath, 'w') as f:
+            json.dump(data, f, indent=2)
     
-    def _create_modality_histogram(self, gate_score, modality_name):
-        """Создает гистограмму распределения гейтов для конкретной модальности"""
-        plt.figure(figsize=(10, 6))
+
+    def _create_distribution_heatmap(self, distribution_history, modality_name="overall", alpha_value=None):
+        """Создает heatmap. Всегда возвращает bytes, даже если данных нет."""
+        if not distribution_history:
+            # Создаем пустой график с сообщением "No data"
+            fig, ax = plt.subplots(figsize=(14, 8))
+            ax.text(0.5, 0.5, 'No data', ha='center', va='center', transform=ax.transAxes, fontsize=20)
+            ax.set_title(f'Gate Distribution ({modality_name})', fontsize=14, fontweight='bold')
+            ax.set_xlabel('Iteration', fontsize=12)
+            ax.set_ylabel('Expert ID', fontsize=12)
+            plt.tight_layout()
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+            buf.seek(0)
+            plt.close()
+            return buf.getvalue()
         
-        # Создаем гистограмму весов гейтов
-        gate_weights = gate_score.detach().cpu().numpy().flatten()
+        steps = sorted(distribution_history.keys())
+        if not steps:
+            # Создаем пустой график с сообщением "No data"
+            fig, ax = plt.subplots(figsize=(14, 8))
+            ax.text(0.5, 0.5, 'No data', ha='center', va='center', transform=ax.transAxes, fontsize=20)
+            ax.set_title(f'Gate Distribution ({modality_name})', fontsize=14, fontweight='bold')
+            ax.set_xlabel('Iteration', fontsize=12)
+            ax.set_ylabel('Expert ID', fontsize=12)
+            plt.tight_layout()
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+            buf.seek(0)
+            plt.close()
+            return buf.getvalue()
+        all_expert_ids = set()
+        for step_counts in distribution_history.values():
+            all_expert_ids.update(step_counts.keys())
+        expert_ids = sorted(all_expert_ids)
+        matrix = np.zeros((len(expert_ids), len(steps)))
         
-        plt.hist(gate_weights, bins=50, alpha=0.7, color='blue', edgecolor='black')
-        plt.title(f'Gate Distribution - Layer {self._layer_id} - {modality_name.capitalize()} Tokens - Step {self._global_step}')
-        plt.xlabel('Gate Weight Value')
-        plt.ylabel('Frequency')
-        plt.grid(True, alpha=0.3)
+        for col_idx, step in enumerate(steps):
+            step_counts = distribution_history[step]
+            total = sum(step_counts.values())
+            if total > 0:
+                for row_idx, expert_id in enumerate(expert_ids):
+                    matrix[row_idx, col_idx] = step_counts.get(expert_id, 0) / total
         
-        # Добавляем статистики на график
-        mean_val = np.mean(gate_weights)
-        std_val = np.std(gate_weights)
-        plt.axvline(mean_val, color='red', linestyle='--', label=f'Mean: {mean_val:.4f}')
-        plt.axvline(mean_val + std_val, color='orange', linestyle=':', label=f'+1σ: {mean_val + std_val:.4f}')
-        plt.axvline(mean_val - std_val, color='orange', linestyle=':', label=f'-1σ: {mean_val - std_val:.4f}')
-        plt.legend()
+        fig, ax = plt.subplots(figsize=(14, 8))
+        title_suffix = f" — constant α={alpha_value}" if alpha_value is not None else ""
+        title = f"Gate Distribution{title_suffix}"
+        if modality_name != "overall":
+            title = f"Gate Distribution ({modality_name}){title_suffix}"
         
-        # Сохраняем в байты
+        im = ax.imshow(matrix, aspect='auto', cmap='viridis', interpolation='nearest')
+        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.set_xlabel('Iteration', fontsize=12)
+        ax.set_ylabel('Expert ID', fontsize=12)
+        
+        step_indices = np.arange(len(steps))
+        if len(steps) > 20:
+            tick_step = max(1, len(steps) // 20)
+            ax.set_xticks(step_indices[::tick_step])
+            ax.set_xticklabels([steps[i] for i in step_indices[::tick_step]], rotation=45)
+        else:
+            ax.set_xticks(step_indices)
+            ax.set_xticklabels(steps, rotation=45)
+        
+        ax.set_yticks(np.arange(len(expert_ids)))
+        ax.set_yticklabels(expert_ids)
+        
+        # Добавляем colorbar
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label('Gate Distribution', fontsize=11)
+        
+        plt.tight_layout()
+        
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
         buf.seek(0)
         plt.close()
         
         return buf.getvalue()
+    
+    def log_distribution_heatmap_to_mlflow(self, modality_name="overall", alpha_value=None):
+        if modality_name == "overall":
+            history = self._gate_distribution_history
+        else:
+            history = self._modality_gate_distribution_history.get(modality_name, {})
+        
+        if not history:
+            return
+        
+        # Создаем heatmap
+        heatmap_bytes = self._create_distribution_heatmap(history, modality_name, alpha_value)
+        if heatmap_bytes is None:
+            return
+        
+        # Получаем MLflow client и run_id
+        if hasattr(self, '_mlflow_client') and hasattr(self, '_mlflow_run_id'):
+            client = self._mlflow_client
+            run_id = self._mlflow_run_id
+        else:
+            run_id = mlflow.active_run().info.run_id if mlflow.active_run() else None
+            if run_id is None:
+                return
+            client = MlflowClient()
+        
+        temp_dir = tempfile.mkdtemp()
+        layer_prefix = f"moe/layer_{self._layer_id}" if self._layer_id is not None else "moe"
+        suffix = f"_{modality_name}" if modality_name != "overall" else ""
+        filename = f"gate_distribution_heatmap{suffix}_step_{self._global_step}.png"
+        tmp_file_path = os.path.join(temp_dir, filename)
+        with open(tmp_file_path, 'wb') as f:
+            f.write(heatmap_bytes)
+        client.log_artifact(run_id, tmp_file_path, layer_prefix)
+        print(f"📊 Heatmap распределений ({modality_name}) отправлена в MLflow: {layer_prefix}/{filename}")
+        os.unlink(tmp_file_path)
+        os.rmdir(temp_dir)
+        
 
     def _log_to_mlflow_activations(self, expert_stats):
         try:
@@ -437,34 +619,123 @@ class MoE(nn.Module):
             # Игнорируем ошибки MLflow, чтобы не прерывать обучение
             pass
 
-    def _create_expert_activation_histogram(self, expert_counts):
-        """Создает гистограмму активаций экспертов (количество столбцов = количество экспертов)"""
-        plt.figure(figsize=(10, 6))
-        
-        # Подготавливаем данные для гистограммы
+    def _create_expert_activation_histogram(self, expert_counts, modality_name=None, ax=None):
+        """Создает гистограмму активаций экспертов (количество столбцов = количество экспертов)
+        Если ax не передан, создает новый figure и возвращает bytes.
+        Если ax передан, рисует на нем и ничего не возвращает."""
         experts = list(expert_counts.keys())
         activations = list(expert_counts.values())
         
+        create_new_figure = (ax is None)
+        if create_new_figure:
+            plt.figure(figsize=(10, 6))
+            ax = plt.gca()
+        
         # Создаем столбчатую диаграмму
-        bars = plt.bar(experts, activations, alpha=0.7, color='green', edgecolor='black')
-        plt.title(f'Expert Token Counts - Layer {self._layer_id} - Step {self._global_step}')
-        plt.xlabel('Expert ID')
-        plt.ylabel('Number of Activations')
-        plt.grid(True, alpha=0.3)
+        bars = ax.bar(experts, activations, alpha=0.7, color='green', edgecolor='black')
+        title = f'Expert Token Counts'
+        if modality_name:
+            title += f' ({modality_name})'
+        ax.set_title(title, fontsize=11)
+        ax.set_xlabel('Expert ID', fontsize=10)
+        ax.set_ylabel('Number of Activations', fontsize=10)
+        ax.grid(True, alpha=0.3)
         
         # Добавляем значения на столбцы
         for bar, count in zip(bars, activations):
-            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
-                    str(count), ha='center', va='bottom')
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
+                    str(count), ha='center', va='bottom', fontsize=8)
         
         # Добавляем статистики
         total_activations = sum(activations)
         balance = max(activations) - min(activations) if activations else 0
-        plt.text(0.02, 0.98, f'Total: {total_activations}\nBalance: {balance}', 
-                transform=plt.gca().transAxes, verticalalignment='top',
+        ax.text(0.02, 0.98, f'Total: {total_activations}\nBalance: {balance}', 
+                transform=ax.transAxes, verticalalignment='top', fontsize=8,
                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
         
-        # Сохраняем в байты
+        # Если создали новый figure, возвращаем bytes
+        if create_new_figure:
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+            buf.seek(0)
+            plt.close()
+            return buf.getvalue()
+        
+    def _create_modality_combined_plot(self, text_history=None, image_history=None, 
+                                       text_expert_counts=None, image_expert_counts=None, alpha_value=None):
+        """Создает объединенный plot с 4 subplot'ами: 2 heatmap (text, image) и 2 гистограммы (text, image)"""
+        fig, axes = plt.subplots(2, 2, figsize=(20, 12))
+        fig.suptitle(f'Gate Distribution Analysis - Layer {self._layer_id} - Step {self._global_step}', 
+                     fontsize=16, fontweight='bold')
+        
+        # Верхний ряд: Heatmap для text и image
+        # Heatmap для text (верхний левый)
+        if text_history and len(text_history) > 0:
+            success = self._create_single_heatmap(axes[0, 0], text_history, "text", alpha_value)
+            if not success:
+                axes[0, 0].text(0.5, 0.5, 'No text data', ha='center', va='center', transform=axes[0, 0].transAxes, fontsize=14)
+                axes[0, 0].set_title('Gate Distribution (text)', fontsize=12, fontweight='bold')
+                axes[0, 0].set_xlabel('Iteration', fontsize=10)
+                axes[0, 0].set_ylabel('Expert ID', fontsize=10)
+        else:
+            axes[0, 0].text(0.5, 0.5, 'No text data', ha='center', va='center', transform=axes[0, 0].transAxes, fontsize=14)
+            axes[0, 0].set_title('Gate Distribution (text)', fontsize=12, fontweight='bold')
+            axes[0, 0].set_xlabel('Iteration', fontsize=10)
+            axes[0, 0].set_ylabel('Expert ID', fontsize=10)
+        
+        # Heatmap для image (верхний правый)
+        if image_history and len(image_history) > 0:
+            success = self._create_single_heatmap(axes[0, 1], image_history, "image", alpha_value)
+            if not success:
+                axes[0, 1].text(0.5, 0.5, 'No image data', ha='center', va='center', transform=axes[0, 1].transAxes, fontsize=14)
+                axes[0, 1].set_title('Gate Distribution (image)', fontsize=12, fontweight='bold')
+                axes[0, 1].set_xlabel('Iteration', fontsize=10)
+                axes[0, 1].set_ylabel('Expert ID', fontsize=10)
+        else:
+            axes[0, 1].text(0.5, 0.5, 'No image data', ha='center', va='center', transform=axes[0, 1].transAxes, fontsize=14)
+            axes[0, 1].set_title('Gate Distribution (image)', fontsize=12, fontweight='bold')
+            axes[0, 1].set_xlabel('Iteration', fontsize=10)
+            axes[0, 1].set_ylabel('Expert ID', fontsize=10)
+        
+        # Нижний ряд: Гистограммы активаций экспертов
+        # Гистограмма для text (нижний левый)
+        if text_expert_counts and len(text_expert_counts) > 0:
+            bars = axes[1, 0].bar(list(text_expert_counts.keys()), list(text_expert_counts.values()), 
+                          alpha=0.7, color='blue', edgecolor='black')
+            axes[1, 0].set_title('Expert Token Counts (text)', fontsize=12, fontweight='bold')
+            axes[1, 0].set_xlabel('Expert ID', fontsize=10)
+            axes[1, 0].set_ylabel('Number of Activations', fontsize=10)
+            axes[1, 0].grid(True, alpha=0.3)
+            # Добавляем значения на столбцы
+            for bar, count in zip(bars, text_expert_counts.values()):
+                axes[1, 0].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
+                        str(count), ha='center', va='bottom', fontsize=8)
+        else:
+            axes[1, 0].text(0.5, 0.5, 'No text data', ha='center', va='center', transform=axes[1, 0].transAxes, fontsize=14)
+            axes[1, 0].set_title('Expert Token Counts (text)', fontsize=12, fontweight='bold')
+            axes[1, 0].set_xlabel('Expert ID', fontsize=10)
+            axes[1, 0].set_ylabel('Number of Activations', fontsize=10)
+        
+        # Гистограмма для image (нижний правый)
+        if image_expert_counts and len(image_expert_counts) > 0:
+            bars = axes[1, 1].bar(list(image_expert_counts.keys()), list(image_expert_counts.values()), 
+                          alpha=0.7, color='orange', edgecolor='black')
+            axes[1, 1].set_title('Expert Token Counts (image)', fontsize=12, fontweight='bold')
+            axes[1, 1].set_xlabel('Expert ID', fontsize=10)
+            axes[1, 1].set_ylabel('Number of Activations', fontsize=10)
+            axes[1, 1].grid(True, alpha=0.3)
+            # Добавляем значения на столбцы
+            for bar, count in zip(bars, image_expert_counts.values()):
+                axes[1, 1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
+                        str(count), ha='center', va='bottom', fontsize=8)
+        else:
+            axes[1, 1].text(0.5, 0.5, 'No image data', ha='center', va='center', transform=axes[1, 1].transAxes, fontsize=14)
+            axes[1, 1].set_title('Expert Token Counts (image)', fontsize=12, fontweight='bold')
+            axes[1, 1].set_xlabel('Expert ID', fontsize=10)
+            axes[1, 1].set_ylabel('Number of Activations', fontsize=10)
+        
+        plt.tight_layout()
+        
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
         buf.seek(0)
@@ -472,9 +743,65 @@ class MoE(nn.Module):
         
         return buf.getvalue()
 
+    def _create_single_heatmap(self, ax, distribution_history, modality_name="overall", alpha_value=None):
+        """Создает одну heatmap на переданной оси. Если данных нет, ничего не рисует (вызывающий код должен показать 'No data')"""
+        if not distribution_history:
+            return False
+        
+        steps = sorted(distribution_history.keys())
+        if not steps:
+            return False
+        
+        all_expert_ids = set()
+        for step_counts in distribution_history.values():
+            all_expert_ids.update(step_counts.keys())
+        expert_ids = sorted(all_expert_ids)
+        
+        if len(expert_ids) == 0:
+            return False
+        
+        matrix = np.zeros((len(expert_ids), len(steps)))
+        has_data = False
+        
+        for col_idx, step in enumerate(steps):
+            step_counts = distribution_history[step]
+            total = sum(step_counts.values())
+            if total > 0:
+                has_data = True
+                for row_idx, expert_id in enumerate(expert_ids):
+                    matrix[row_idx, col_idx] = step_counts.get(expert_id, 0) / total
+        
+        if not has_data or matrix.max() == 0:
+            return False
+        
+        title_suffix = f" — constant α={alpha_value}" if alpha_value is not None else ""
+        title = f"Gate Distribution ({modality_name}){title_suffix}"
+        
+        im = ax.imshow(matrix, aspect='auto', cmap='viridis', interpolation='nearest', vmin=0, vmax=1)
+        ax.set_title(title, fontsize=12, fontweight='bold')
+        ax.set_xlabel('Iteration', fontsize=10)
+        ax.set_ylabel('Expert ID', fontsize=10)
+        
+        step_indices = np.arange(len(steps))
+        if len(steps) > 20:
+            tick_step = max(1, len(steps) // 20)
+            ax.set_xticks(step_indices[::tick_step])
+            ax.set_xticklabels([steps[i] for i in step_indices[::tick_step]], rotation=45, fontsize=8)
+        else:
+            ax.set_xticks(step_indices)
+            ax.set_xticklabels(steps, rotation=45, fontsize=8)
+        
+        ax.set_yticks(np.arange(len(expert_ids)))
+        ax.set_yticklabels(expert_ids, fontsize=8)
+        
+        plt.colorbar(im, ax=ax, label='Gate Distribution')
+        return True
+
 
 def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2, special_tokens=None, noise_std: float = 1e-2,
-    temp_init: float = 100.0, temp_warmup_steps: int = 500, temp_gamma: float = 0.98, temp_min: float = 1.0):
+    temp_init: float = 100.0, temp_warmup_steps: int = 500, temp_gamma: float = 0.98, temp_min: float = 1.0,
+    modality_init_hardness: float = 1.0, modality_init_steps: int = 1000, modality_init_hardness_min: float = 0.2,
+    use_gumbel: bool = False):
     total_layers = len(model.showo.model.layers)
     print(f"🔧 Патчим модель с MoE:")
     print(f"   Всего слоев в модели: {total_layers}")
@@ -496,7 +823,11 @@ def patch_model_with_moe(model, count_layers_to_patch=3, num_experts=4, top_k=2,
                 top_k=top_k,
                 config=config_phi,
                 template_mlp=original_mlp,
-                noise_std=noise_std
+                noise_std=noise_std,
+                modality_init_hardness=modality_init_hardness,
+                modality_init_steps=modality_init_steps,
+                modality_init_hardness_min=modality_init_hardness_min,
+                use_gumbel=use_gumbel
             )
             moe_layer.to(next(original_mlp.parameters()).device)
             print(f"    Инициализированы {num_experts} экспертов как копии FFN + шум (std={noise_std})")
@@ -584,10 +915,16 @@ def patch_and_freeze_moe(
     temp_init: float = 100.0,
     temp_warmup_steps: int = 500,
     temp_gamma: float = 0.98,
-    temp_min: float = 1
+    temp_min: float = 1,
+    modality_init_hardness: float = 1.0,
+    modality_init_steps: int = 1000,
+    modality_init_hardness_min: float = 0.2,
+    use_gumbel: bool = False
 ):
     model = patch_model_with_moe(model, count_layers_to_patch, num_experts, top_k, special_tokens, noise_std=noise_std,
-        temp_init=temp_init, temp_warmup_steps=temp_warmup_steps, temp_gamma=temp_gamma, temp_min=temp_min)
+        temp_init=temp_init, temp_warmup_steps=temp_warmup_steps, temp_gamma=temp_gamma, temp_min=temp_min,
+        modality_init_hardness=modality_init_hardness, modality_init_steps=modality_init_steps,
+        modality_init_hardness_min=modality_init_hardness_min, use_gumbel=use_gumbel)
     if mlflow_client is not None and mlflow_run_id is not None:
         for layer in model.showo.model.layers:
             if hasattr(layer, 'mlp') and hasattr(layer.mlp, 'experts'):

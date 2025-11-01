@@ -651,7 +651,10 @@ def main():
             mlflow_client=mlflow_client,
             mlflow_run_id=mlflow_run_id,
             special_tokens=special_tokens,
-        )
+            modality_init_hardness=config.moe["modality_init_hardness"],
+            modality_init_steps=config.moe["modality_init_steps"],
+            modality_init_hardness_min=config.moe["modality_init_hardness_min"],
+            use_gumbel=config.moe["use_gumbel"])
 
     mask_id = model.mask_token_id
 
