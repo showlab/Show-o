@@ -73,12 +73,13 @@ class Showo(ModelMixin, ConfigMixin):
         labels_mask_text=None,
         labels_mask_image=None,
         moe_temperature=None,
+        moe_domain_id=None,
         **kwargs,
     ):
         if input_embeddings is None:
-            logits = self.showo(input_ids=input_ids, attention_mask=attention_mask, moe_temperature=moe_temperature)["logits"]
+            logits = self.showo(input_ids=input_ids, attention_mask=attention_mask, moe_temperature=moe_temperature, moe_domain_id=moe_domain_id)["logits"]
         else:
-            logits = self.showo(inputs_embeds=input_embeddings, attention_mask=attention_mask, moe_temperature=moe_temperature)["logits"]
+            logits = self.showo(inputs_embeds=input_embeddings, attention_mask=attention_mask, moe_temperature=moe_temperature, moe_domain_id=moe_domain_id)["logits"]
 
         if labels is not None:
             # 1. Mask token prediction (discrete diffusion) for image generation

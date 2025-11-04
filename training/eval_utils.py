@@ -1,47 +1,17 @@
-import os
-import shutil
-import tempfile
-import logging
-
 import numpy as np
 import torch
 from PIL import Image
 from accelerate.logging import get_logger
 from PIL import ImageDraw, ImageFont
+from utils import log_images_to_mlflow
 
 from training.prompting_utils import (
     create_attention_mask_predict_next,
     create_attention_mask_for_mmu,
 )
-from moe_utils import LayerOutputRecorder, log_stats_to_mlflow
-from mlflow.tracking import MlflowClient
+from training.activations_recorder import LayerOutputRecorder
 
 logger = get_logger(__name__, log_level="INFO")
-
-
-def log_images_to_mlflow(
-    pil_images, filenames, artifact_path, mlflow_client=None, mlflow_run_id=None
-):
-    temp_dir = tempfile.mkdtemp()
-
-    for image, filename in zip(pil_images, filenames):
-        image_path = os.path.join(temp_dir, filename)
-        image.save(image_path)
-
-        if mlflow_client is not None and mlflow_run_id is not None:
-            client = mlflow_client
-            run_id = mlflow_run_id
-        else:
-            import mlflow
-
-            run_id = mlflow.active_run().info.run_id if mlflow.active_run() else None
-            if run_id is None:
-                continue
-            client = MlflowClient()
-
-        client.log_artifact(run_id, image_path, artifact_path)
-
-    shutil.rmtree(temp_dir)
 
 
 @torch.no_grad()
@@ -250,8 +220,8 @@ def generate_images(
             uni_prompting=uni_prompting,
             config=config,
         )
-    # In the beginning of training, the model is not fully trained and the generated token ids can be out of range
-    # so we clamp them to the correct range.
+
+        
     logger.info(f"   Generated tokens - min: {gen_token_ids.min().item()}, max: {gen_token_ids.max().item()}, mean: {gen_token_ids.float().mean().item():.2f}")
     logger.info(f"   Clamping to [0, {codebook_size - 1}]")
     
@@ -523,7 +493,6 @@ def log_grad_norm(
     if other_grad_norms:
         metrics["grad_norm/other_mean"] = sum(other_grad_norms) / len(other_grad_norms)
 
-    # Статистики по слоям (агрегированные)
     for layer_name, norms in layer_grad_norms.items():
         if norms:
             metrics[f"grad_norm/{layer_name}_mean"] = sum(norms) / len(norms)
@@ -580,7 +549,6 @@ def log_training_metrics(
     mlflow_run_id=None,
     logger=None,
 ):
-    """Логирует метрики обучения в MLflow и консоль."""
     all_lrs = lr_scheduler.get_last_lr()
 
     logs = {
@@ -595,14 +563,12 @@ def log_training_metrics(
         "batch_time": batch_time_m.val,
     }
 
-    # Логируем все learning rates
     for idx, lr_val in enumerate(all_lrs):
         logs[f"lr_group_{idx}"] = lr_val
 
-    # Предполагаем, что группы 0,1 - MoE, 2,3 - base
     if len(all_lrs) >= 4:
-        logs["lr_moe"] = all_lrs[0]  # MoE с decay
-        logs["lr_base"] = all_lrs[2]  # Base с decay
+        logs["lr_moe"] = all_lrs[0]
+        logs["lr_base"] = all_lrs[2]
     else:
         logs["lr"] = all_lrs[0]
 
@@ -665,12 +631,8 @@ def collect_and_log_moe_activations(
             batch_size_mmu=batch_size_mmu,
             max_seq_length=config.dataset.preprocessing.max_seq_length,
         )
-        if mlflow_client is not None and mlflow_run_id is not None:
-            log_stats_to_mlflow(
-                recorder, mlflow_client, mlflow_run_id, global_step, "moe_activations"
-            )
         recorder.remove_hooks()
         recorder.clear()
         del recorder
 
-        logger.info(f"📊 Статистики активаций MoE собраны и отправлены в MLflow")
+        logger.info(f"📊 Статистики активаций MoE собраны")

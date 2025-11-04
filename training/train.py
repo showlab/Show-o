@@ -1,10 +1,7 @@
 import os
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
-import json
 import logging
-import math
-import shutil
 import time
 from pathlib import Path
 from typing import Union
@@ -41,7 +38,7 @@ from models.lr_schedulers import get_scheduler
 import torch.nn as nn
 from torch.optim.lr_scheduler import SequentialLR, LinearLR, ExponentialLR
 from models.logger import set_verbosity_info, set_verbosity_error
-from moe_utils import patch_and_freeze_moe  # MoE support
+from training.moe_utils import patch_and_freeze_moe
 from training.eval_utils import (
     visualize_predictions,
     generate_images,
@@ -118,7 +115,32 @@ def train_step(
 ):
     batch_size_t2i = batch["t2i_flow"]["images"].shape[0]
     batch_size_lm = len(batch["lm_flow"]["input_ids"])
-    batch_size_mmu = batch["mmu_flow"]["images"].shape[0]
+    
+    # Определяем доменные flow'ы и их приоритет (порядок важен!)
+    domain_flows = [
+        "vqav2_experiments_flow",
+        "textvqa_experiments_flow",
+        "clevr_flow",
+        "vqav2_flow",
+        "textvqa_flow",
+        "docvqa_flow",
+        "kvasir_flow",
+    ]
+    
+    # Определяем batch_size_mmu и domain_id из первого найденного доменного flow'а
+    batch_size_mmu = batch["mmu_flow"]["images"].shape[0]  # По умолчанию
+    domain_id = None
+    domain_ids = []
+    
+    for flow_key in domain_flows:
+        if flow_key in batch:
+            if domain_id is None:  # Первый найденный домен
+                batch_size_mmu = batch[flow_key]["images"].shape[0]
+                domain_id = flow_key[:-5]  # Убираем "_flow" из конца
+            domain_ids.append(flow_key[:-5])  # Добавляем все найденные домены
+    
+    if global_step < 5 and domain_ids:
+        logger.info(f"📊 Step {global_step}: Домены в батче: {domain_ids}, используемый domain_id: {domain_id}")
 
     # Build T2I sequences
     pixel_values, texts = batch["t2i_flow"]["images"], batch["t2i_flow"]["input_ids"]
@@ -159,12 +181,21 @@ def train_step(
     input_ids = torch.cat((input_ids_t2i, input_ids_lm.to(input_ids_t2i.device)), dim=0)
     labels = torch.cat((labels_t2i, labels_lm.to(input_ids_t2i.device)), dim=0)
 
-    # Build MMU sequences
-    if "llava" in config.dataset.und_type:
+    # Определяем все доменные flow'ы, которые присутствуют в батче
+    present_domain_flows = [flow_key for flow_key in domain_flows if flow_key in batch]
+    
+    # Для обратной совместимости используем первый домен (приоритет экспериментальным)
+    mmu_flow_key = "mmu_flow"
+    if present_domain_flows:
+        mmu_flow_key = present_domain_flows[0]  # Первый домен из приоритетного списка
+    
+    is_domain_flow = mmu_flow_key in domain_flows
+    
+    if "llava" in config.dataset.und_type or is_domain_flow:
         pixel_values_mmu, input_ids_mmu, labels_mmu = (
-            batch["mmu_flow"]["images"],
-            batch["mmu_flow"]["input_ids"],
-            batch["mmu_flow"]["labels"],
+            batch[mmu_flow_key]["images"],
+            batch[mmu_flow_key]["input_ids"],
+            batch[mmu_flow_key]["labels"],
         )
         pixel_values_mmu = pixel_values_mmu.to(accelerator.device, non_blocking=True)
         input_ids_mmu = input_ids_mmu.to(accelerator.device, non_blocking=True)
@@ -248,6 +279,60 @@ def train_step(
         # logger.info("Labels: {}".format(labels))
 
     current_temperature = temp_scheduler.get_last_lr()[0]
+    
+    # Обрабатываем каждый домен отдельно для сбора статистики MoE
+    # Это нужно делать даже если в батче только один домен, чтобы собирать статистику для всех доменов
+    if len(present_domain_flows) >= 1 and config.get("moe", {}).get("enabled", False):
+        # Обрабатываем каждый домен отдельно для сбора gate distributions
+        # Важно: обрабатываем ВСЕ домены из present_domain_flows
+        for flow_key in present_domain_flows:
+            flow_domain_id = flow_key[:-5]  # Преобразуем flow_key в domain_id (убираем "_flow")
+            # Обрабатываем этот домен отдельно для логирования
+            pixel_values_domain = batch[flow_key]["images"].to(accelerator.device, non_blocking=True)
+            input_ids_domain = batch[flow_key]["input_ids"].to(accelerator.device, non_blocking=True)
+            labels_domain = batch[flow_key]["labels"].to(accelerator.device, non_blocking=True)
+            
+            image_tokens_domain = vq_model.get_code(pixel_values_domain)
+            image_tokens_domain = image_tokens_domain + len(uni_prompting.text_tokenizer)
+            
+            input_ids_domain_processed = torch.cat([
+                (torch.ones(input_ids_domain.shape[0], 1) * uni_prompting.sptids_dict['<|mmu|>']).to(accelerator.device),
+                (torch.ones(input_ids_domain.shape[0], 1) * uni_prompting.sptids_dict['<|soi|>']).to(accelerator.device),
+                image_tokens_domain,
+                (torch.ones(input_ids_domain.shape[0], 1) * uni_prompting.sptids_dict['<|eoi|>']).to(accelerator.device),
+                input_ids_domain,
+            ], dim=1).long()
+            
+            labels_domain_processed = torch.cat([
+                (torch.ones(input_ids_domain.shape[0], 1) * uni_prompting.ignore_id).to(accelerator.device),
+                (torch.ones(input_ids_domain.shape[0], 1) * uni_prompting.ignore_id).to(accelerator.device),
+                torch.ones_like(image_tokens_domain) * uni_prompting.ignore_id,
+                (torch.ones(input_ids_domain.shape[0], 1) * uni_prompting.ignore_id).to(accelerator.device),
+                labels_domain,
+            ], dim=1).long()
+            
+            attention_mask_domain = create_attention_mask_for_mmu(
+                input_ids_domain_processed.to(input_ids.device),
+                eoi_id=int(uni_prompting.sptids_dict["<|eoi|>"]),
+            ).to(mask_dtype)
+            
+            # Forward pass только для сбора статистики (без градиентов)
+            with torch.no_grad():
+                _ = model(
+                    input_ids=input_ids_domain_processed,
+                    input_embeddings=None,
+                    attention_mask=attention_mask_domain,
+                    labels=labels_domain_processed,
+                    label_smoothing=config.training.label_smoothing,
+                    batch_size_t2i=0,
+                    batch_size_lm=0,
+                    batch_size_mmu=input_ids_domain_processed.shape[0],
+                    max_seq_length=config.dataset.preprocessing.max_seq_length,
+                    moe_temperature=current_temperature,
+                    moe_domain_id=flow_domain_id,
+                )
+    
+    # Основной forward pass для обучения (со всеми данными)
     logits, loss_t2i, loss_lm, loss_mmu = model(
         input_ids=input_ids,
         input_embeddings=None,
@@ -259,6 +344,7 @@ def train_step(
         batch_size_mmu=batch_size_mmu,
         max_seq_length=config.dataset.preprocessing.max_seq_length,
         moe_temperature=current_temperature,
+        moe_domain_id=domain_id,  # Передаем domain_id в MoE
     )
 
     # Gather the losses across all processes for logging (if we use distributed training).
@@ -807,145 +893,174 @@ def main():
                 colour="green",
             )
 
-        for batch, batch_idx, dataloader_idx in combined_dataloader:
-            data_time_m.update(time.time() - end)
+        try:
+            for batch, batch_idx, dataloader_idx in combined_dataloader:
+                data_time_m.update(time.time() - end)
 
-            with accelerator.accumulate(model):
-                step_outputs = train_step(
-                    batch=batch,
-                    epoch=epoch,
-                    global_step=global_step,
-                    model=model,
-                    optimizer=optimizer,
-                    lr_scheduler=lr_scheduler,
-                    balance_scheduler=balance_scheduler,
-                    temp_scheduler=temp_scheduler,
-                    accelerator=accelerator,
-                    config=config,
-                    uni_prompting=uni_prompting,
-                    vq_model=vq_model,
-                    mask_dtype=mask_dtype,
-                    mask_id=mask_id,
-                    mask_schedule=mask_schedule,
-                    batch_time_m=batch_time_m,
-                    data_time_m=data_time_m,
-                    total_batch_size_per_gpu=total_batch_size_per_gpu,
-                    mlflow_client=mlflow_client,
-                    mlflow_run_id=mlflow_run_id,
-                    pbar=pbar,
-                )
+                try:
+                    with accelerator.accumulate(model):
+                        step_outputs = train_step(
+                            batch=batch,
+                            epoch=epoch,
+                            global_step=global_step,
+                            model=model,
+                            optimizer=optimizer,
+                            lr_scheduler=lr_scheduler,
+                            balance_scheduler=balance_scheduler,
+                            temp_scheduler=temp_scheduler,
+                            accelerator=accelerator,
+                            config=config,
+                            uni_prompting=uni_prompting,
+                            vq_model=vq_model,
+                            mask_dtype=mask_dtype,
+                            mask_id=mask_id,
+                            mask_schedule=mask_schedule,
+                            batch_time_m=batch_time_m,
+                            data_time_m=data_time_m,
+                            total_batch_size_per_gpu=total_batch_size_per_gpu,
+                            mlflow_client=mlflow_client,
+                            mlflow_run_id=mlflow_run_id,
+                            pbar=pbar,
+                        )
 
-            input_ids = step_outputs["input_ids"]
-            input_ids_t2i = step_outputs["input_ids_t2i"]
-            attention_mask = step_outputs["attention_mask"]
-            labels = step_outputs["labels"]
-            batch_size_t2i = step_outputs["batch_size_t2i"]
-            batch_size_lm = step_outputs["batch_size_lm"]
-            batch_size_mmu = step_outputs["batch_size_mmu"]
-            image_tokens_ori = step_outputs["image_tokens_ori"]
-            texts = step_outputs["texts"]
-            logits = step_outputs["logits"]
-            # avg_loss_t2i = step_outputs["avg_loss_t2i"]
-            # avg_loss_lm = step_outputs["avg_loss_lm"]
-            # avg_loss_mmu = step_outputs["avg_loss_mmu"]
-            # balance_loss = step_outputs["balance_loss"]
-            # avg_masking_rate = step_outputs["avg_masking_rate"]
+                    input_ids = step_outputs["input_ids"]
+                    input_ids_t2i = step_outputs["input_ids_t2i"]
+                    attention_mask = step_outputs["attention_mask"]
+                    labels = step_outputs["labels"]
+                    batch_size_t2i = step_outputs["batch_size_t2i"]
+                    batch_size_lm = step_outputs["batch_size_lm"]
+                    batch_size_mmu = step_outputs["batch_size_mmu"]
+                    image_tokens_ori = step_outputs["image_tokens_ori"]
+                    texts = step_outputs["texts"]
+                    logits = step_outputs["logits"]
+                    # avg_loss_t2i = step_outputs["avg_loss_t2i"]
+                    # avg_loss_lm = step_outputs["avg_loss_lm"]
+                    # avg_loss_mmu = step_outputs["avg_loss_mmu"]
+                    # balance_loss = step_outputs["balance_loss"]
+                    # avg_masking_rate = step_outputs["avg_masking_rate"]
 
-            # Checks if the accelerator has performed an optimization step behind the scenes
-            if accelerator.sync_gradients:
-                batch_time_m.update(time.time() - end)
-                end = time.time()
-                if (
-                    (global_step + 1) % 100 == 0
-                    and config.get("moe", {}).get("enabled", False)
-                    and accelerator.is_main_process
-                ):
-                    collect_and_log_moe_activations(
-                        model=model,
-                        accelerator=accelerator,
-                        input_ids=input_ids,
-                        attention_mask=attention_mask,
-                        labels=labels,
-                        config=config,
-                        batch_size_t2i=batch_size_t2i,
-                        batch_size_lm=batch_size_lm,
-                        batch_size_mmu=batch_size_mmu,
-                        global_step=global_step + 1,
-                        mlflow_client=mlflow_client,
-                        mlflow_run_id=mlflow_run_id,
-                    )
+                    # Checks if the accelerator has performed an optimization step behind the scenes
+                    if accelerator.sync_gradients:
+                        batch_time_m.update(time.time() - end)
+                        end = time.time()
+                        if (
+                            (global_step + 1) % 100 == 0
+                            and config.get("moe", {}).get("enabled", False)
+                            and accelerator.is_main_process
+                        ):
+                            collect_and_log_moe_activations(
+                                model=model,
+                                accelerator=accelerator,
+                                input_ids=input_ids,
+                                attention_mask=attention_mask,
+                                labels=labels,
+                                config=config,
+                                batch_size_t2i=batch_size_t2i,
+                                batch_size_lm=batch_size_lm,
+                                batch_size_mmu=batch_size_mmu,
+                                global_step=global_step + 1,
+                                mlflow_client=mlflow_client,
+                                mlflow_run_id=mlflow_run_id,
+                            )
 
-                # Save model checkpoint
-                if (global_step + 1) % config.experiment.save_every == 0:
-                    save_checkpoint(model, config, accelerator, global_step + 1)
+                        # Save model checkpoint (отключено)
+                        # if (global_step + 1) % config.experiment.save_every == 0:
+                        #     save_checkpoint(model, config, accelerator, global_step + 1)
 
-                # print(f"global_step: {global_step + 1}, config.experiment.generate_every: {config.experiment.generate_every}")
-                # Debug logging for generation
-                should_generate = (global_step + 1) == 1 or (global_step + 1) % config.experiment.generate_every == 0
-                if (global_step + 1) % config.experiment.generate_every == 0:
-                    logger.info(f"🎨 Step {global_step + 1}: should_generate={should_generate}, is_main_process={accelerator.is_main_process}")
+                        # print(f"global_step: {global_step + 1}, config.experiment.generate_every: {config.experiment.generate_every}")
+                        # Debug logging for generation
+                        should_generate = (global_step + 1) == 1 or (global_step + 1) % config.experiment.generate_every == 0
+                        if (global_step + 1) % config.experiment.generate_every == 0:
+                            logger.info(f"🎨 Step {global_step + 1}: should_generate={should_generate}, is_main_process={accelerator.is_main_process}")
 
-                if should_generate and accelerator.is_main_process:
-                    generate_images(
-                        model,
-                        vq_model,
-                        uni_prompting,
-                        accelerator,
-                        config,
-                        global_step + 1,
-                        mask_schedule=mask_schedule,
-                        mlflow_client=mlflow_client,
-                        mlflow_run_id=mlflow_run_id,
-                    )
+                        if should_generate and accelerator.is_main_process:
+                            generate_images(
+                                model,
+                                vq_model,
+                                uni_prompting,
+                                accelerator,
+                                config,
+                                global_step + 1,
+                                mask_schedule=mask_schedule,
+                                mlflow_client=mlflow_client,
+                                mlflow_run_id=mlflow_run_id,
+                            )
 
-                    visualize_predictions(
-                        model,
-                        vq_model,
-                        uni_prompting,
-                        config,
-                        global_step + 1,
-                        input_ids_t2i,
-                        image_tokens_ori,
-                        batch["t2i_flow"]["images"],
-                        texts,
-                        logits,
-                        mlflow_client=mlflow_client,
-                        mlflow_run_id=mlflow_run_id,
-                    )
+                            visualize_predictions(
+                                model,
+                                vq_model,
+                                uni_prompting,
+                                config,
+                                global_step + 1,
+                                input_ids_t2i,
+                                image_tokens_ori,
+                                batch["t2i_flow"]["images"],
+                                texts,
+                                logits,
+                                mlflow_client=mlflow_client,
+                                mlflow_run_id=mlflow_run_id,
+                            )
 
-                    # Отключаем evaluate_mmu для моделей с CLIP ViT (несовместимо с VQ tokens)
-                    # if not config.model.showo.get("w_clip_vit", False):
-                    #     evaluate_mmu(
-                    #         model,
-                    #         vq_model,
-                    #         uni_prompting,
-                    #         accelerator,
-                    #         config,
-                    #         global_step + 1,
-                    #         batch["mmu_flow"],
-                    #         mlflow_client=mlflow_client,
-                    #         mlflow_run_id=mlflow_run_id,
-                    #     )
+                            # Отключаем evaluate_mmu для моделей с CLIP ViT (несовместимо с VQ tokens)
+                            # if not config.model.showo.get("w_clip_vit", False):
+                            #     evaluate_mmu(
+                            #         model,
+                            #         vq_model,
+                            #         uni_prompting,
+                            #         accelerator,
+                            #         config,
+                            #         global_step + 1,
+                            #         batch["mmu_flow"],
+                            #         mlflow_client=mlflow_client,
+                            #         mlflow_run_id=mlflow_run_id,
+                            #     )
 
-                global_step += 1
+                        global_step += 1
 
-            if global_step >= config.training.max_train_steps:
-                break
-        if accelerator.is_main_process:
-            pbar.close()
+                        if global_step >= config.training.max_train_steps:
+                            logger.info(f"Достигнут лимит шагов: {global_step} >= {config.training.max_train_steps}")
+                            break
+                except Exception as e:
+                    logger.error(f"Ошибка на шаге {global_step}: {e}", exc_info=True)
+                    # Продолжаем обучение даже при ошибке
+                    global_step += 1
+                    if global_step >= config.training.max_train_steps:
+                        break
+                    continue
+        except Exception as e:
+            logger.error(f"Критическая ошибка в цикле обучения: {e}", exc_info=True)
+            # Не останавливаем обучение, просто логируем ошибку
+        finally:
+            if accelerator.is_main_process:
+                if pbar is not None:
+                    pbar.close()
 
     accelerator.wait_for_everyone()
-    save_checkpoint(model, config, accelerator, global_step)
+    # Save final checkpoint (отключено)
+    # save_checkpoint(model, config, accelerator, global_step)
 
+    # Завершаем MLflow run только если обучение действительно завершилось (достигнут max_train_steps)
     if mlflow_client is not None and mlflow_run_id is not None:
-        mlflow_client.set_terminated(mlflow_run_id, status="FINISHED")
-        logger.info("MLflow run finished")
+        if global_step >= config.training.max_train_steps:
+            mlflow_client.set_terminated(mlflow_run_id, status="FINISHED")
+            logger.info(f"MLflow run finished: достигнут лимит шагов {global_step} >= {config.training.max_train_steps}")
+        else:
+            logger.info(f"MLflow run продолжается: шаг {global_step} < {config.training.max_train_steps}")
+            # НЕ завершаем run, если обучение не закончилось
 
-    if accelerator.is_main_process:
-        model = accelerator.unwrap_model(model)
-        model.save_pretrained(config.experiment.output_dir, safe_serialization=False)
+    # Save final model (отключено)
+    # if accelerator.is_main_process:
+    #     model = accelerator.unwrap_model(model)
+    #     model.save_pretrained(config.experiment.output_dir, safe_serialization=False)
 
-    accelerator.end_training()
+    # Исправление для версий accelerate, где trackers может отсутствовать
+    try:
+        if hasattr(accelerator, 'trackers') and accelerator.trackers:
+            accelerator.end_training()
+        else:
+            logger.info("Trackers not initialized, skipping end_training()")
+    except AttributeError:
+        logger.warning("accelerator.end_training() failed (trackers not available), skipping")
 
 
 if __name__ == "__main__":

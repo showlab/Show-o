@@ -1,4 +1,5 @@
 import math
+import os
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
@@ -8,6 +9,7 @@ from accelerate.logging import get_logger
 from training.data import Text2ImageDataset
 from training.imagenet_dataset import ImageNetDataset
 from models.llava.llava_data_vq_unified import get_instruct_data_loader
+from models.llava.domain_datasets import get_domain_data_loader
 
 logger = get_logger(__name__, log_level="INFO")
 
@@ -216,6 +218,150 @@ def create_dataloaders(
         )
 
     # ============================================================
+    # Domain-specific datasets (VQAv2, TextVQA, DocVQA, Kvasir-VQA, TextVQA Experiments, VQAv2 Experiments)
+    # ============================================================
+    train_dataloader_vqav2 = None
+    train_dataloader_textvqa = None
+    train_dataloader_textvqa_experiments = None
+    train_dataloader_vqav2_experiments = None
+    train_dataloader_docvqa = None
+    train_dataloader_kvasir = None
+    
+    # VQAv2
+    if hasattr(dataset_config, 'vqav2_data_file_path') and dataset_config.vqav2_data_file_path:
+        if os.path.exists(dataset_config.vqav2_data_file_path):
+            train_dataloader_vqav2 = get_domain_data_loader(
+                tokenizer,
+                batch_size=config.training.batch_size_vqav2 if hasattr(config.training, 'batch_size_vqav2') else config.training.batch_size_mmu,
+                num_workers=dataset_config.num_workers,
+                world_size=accelerator.num_processes,
+                local_rank=accelerator.process_index,
+                max_length=preproc_config.max_seq_length
+                if config.dataset.add_system_prompt
+                else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
+                dataset_type="vqav2",
+                data_file_path=dataset_config.vqav2_data_file_path,
+                image_root=dataset_config.vqav2_image_root,
+            )
+        else:
+            logger.warning(f"VQAv2 dataset file not found: {dataset_config.vqav2_data_file_path}. Skipping VQAv2 dataloader.")
+    
+    # TextVQA
+    if hasattr(dataset_config, 'textvqa_data_file_path') and dataset_config.textvqa_data_file_path:
+        if os.path.exists(dataset_config.textvqa_data_file_path):
+            train_dataloader_textvqa = get_domain_data_loader(
+                tokenizer,
+                batch_size=config.training.batch_size_textvqa if hasattr(config.training, 'batch_size_textvqa') else config.training.batch_size_mmu,
+                num_workers=dataset_config.num_workers,
+                world_size=accelerator.num_processes,
+                local_rank=accelerator.process_index,
+                max_length=preproc_config.max_seq_length
+                if config.dataset.add_system_prompt
+                else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
+                dataset_type="textvqa",
+                data_file_path=dataset_config.textvqa_data_file_path,
+                image_root=dataset_config.textvqa_image_root,
+            )
+        else:
+            logger.warning(f"TextVQA dataset file not found: {dataset_config.textvqa_data_file_path}. Skipping TextVQA dataloader.")
+    
+    # TextVQA Experiments (датасет для экспериментов MoE - 1000 семплов)
+    if hasattr(dataset_config, 'textvqa_experiments_data_file_path') and dataset_config.textvqa_experiments_data_file_path:
+        if os.path.exists(dataset_config.textvqa_experiments_data_file_path):
+            train_dataloader_textvqa_experiments = get_domain_data_loader(
+                tokenizer,
+                batch_size=config.training.batch_size_textvqa_experiments if hasattr(config.training, 'batch_size_textvqa_experiments') else config.training.batch_size_mmu,
+                num_workers=dataset_config.num_workers,
+                world_size=accelerator.num_processes,
+                local_rank=accelerator.process_index,
+                max_length=preproc_config.max_seq_length
+                if config.dataset.add_system_prompt
+                else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
+                dataset_type="textvqa",
+                data_file_path=dataset_config.textvqa_experiments_data_file_path,
+                image_root=dataset_config.textvqa_experiments_image_root,
+            )
+        else:
+            logger.warning(f"TextVQA Experiments dataset file not found: {dataset_config.textvqa_experiments_data_file_path}. Skipping TextVQA Experiments dataloader.")
+    
+    # VQAv2 Experiments (датасет для экспериментов MoE - 1000 семплов)
+    if hasattr(dataset_config, 'vqav2_experiments_data_file_path') and dataset_config.vqav2_experiments_data_file_path:
+        if os.path.exists(dataset_config.vqav2_experiments_data_file_path):
+            train_dataloader_vqav2_experiments = get_domain_data_loader(
+                tokenizer,
+                batch_size=config.training.batch_size_vqav2 if hasattr(config.training, 'batch_size_vqav2') else config.training.batch_size_mmu,
+                num_workers=dataset_config.num_workers,
+                world_size=accelerator.num_processes,
+                local_rank=accelerator.process_index,
+                max_length=preproc_config.max_seq_length
+                if config.dataset.add_system_prompt
+                else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
+                dataset_type="vqav2",
+                data_file_path=dataset_config.vqav2_experiments_data_file_path,
+                image_root=dataset_config.vqav2_experiments_image_root,
+            )
+        else:
+            logger.warning(f"VQAv2 Experiments dataset file not found: {dataset_config.vqav2_experiments_data_file_path}. Skipping VQAv2 Experiments dataloader.")
+    
+    # DocVQA
+    if hasattr(dataset_config, 'docvqa_data_file_path') and dataset_config.docvqa_data_file_path:
+        if os.path.exists(dataset_config.docvqa_data_file_path):
+            train_dataloader_docvqa = get_domain_data_loader(
+                tokenizer,
+                batch_size=config.training.batch_size_docvqa if hasattr(config.training, 'batch_size_docvqa') else config.training.batch_size_mmu,
+                num_workers=dataset_config.num_workers,
+                world_size=accelerator.num_processes,
+                local_rank=accelerator.process_index,
+                max_length=preproc_config.max_seq_length
+                if config.dataset.add_system_prompt
+                else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
+                dataset_type="docvqa",
+                data_file_path=dataset_config.docvqa_data_file_path,
+                image_root=dataset_config.docvqa_image_root,
+            )
+        else:
+            logger.warning(f"DocVQA dataset file not found: {dataset_config.docvqa_data_file_path}. Skipping DocVQA dataloader.")
+    
+    # Kvasir-VQA
+    if hasattr(dataset_config, 'kvasir_data_file_path') and dataset_config.kvasir_data_file_path:
+        if os.path.exists(dataset_config.kvasir_data_file_path):
+            train_dataloader_kvasir = get_domain_data_loader(
+                tokenizer,
+                batch_size=config.training.batch_size_kvasir if hasattr(config.training, 'batch_size_kvasir') else config.training.batch_size_mmu,
+                num_workers=dataset_config.num_workers,
+                world_size=accelerator.num_processes,
+                local_rank=accelerator.process_index,
+                max_length=preproc_config.max_seq_length
+                if config.dataset.add_system_prompt
+                else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
+                dataset_type="kvasir",
+                data_file_path=dataset_config.kvasir_data_file_path,
+                image_root=dataset_config.kvasir_image_root,
+            )
+        else:
+            logger.warning(f"Kvasir-VQA dataset file not found: {dataset_config.kvasir_data_file_path}. Skipping Kvasir-VQA dataloader.")
+    
+    # CLEVR
+    train_dataloader_clevr = None
+    if hasattr(dataset_config, 'clevr_data_file_path') and dataset_config.clevr_data_file_path:
+        if os.path.exists(dataset_config.clevr_data_file_path):
+            train_dataloader_clevr = get_domain_data_loader(
+                tokenizer,
+                batch_size=config.training.batch_size_clevr if hasattr(config.training, 'batch_size_clevr') else config.training.batch_size_mmu,
+                num_workers=dataset_config.num_workers,
+                world_size=accelerator.num_processes,
+                local_rank=accelerator.process_index,
+                max_length=preproc_config.max_seq_length
+                if config.dataset.add_system_prompt
+                else preproc_config.max_seq_length + SYSTEM_PROMPT_LEN,
+                dataset_type="clevr",
+                data_file_path=dataset_config.clevr_data_file_path,
+                image_root=dataset_config.clevr_image_root,
+            )
+        else:
+            logger.warning(f"CLEVR dataset file not found: {dataset_config.clevr_data_file_path}. Skipping CLEVR dataloader.")
+
+    # ============================================================
     # Dummy LM dataloader
     # ============================================================
     train_dataloader_lm = torch.utils.data.DataLoader(
@@ -233,6 +379,44 @@ def create_dataloaders(
         "lm_flow": train_dataloader_lm,
         "mmu_flow": train_dataloader_mmu,
     }
+    
+    # Добавляем доменные датасеты в iterables, если они доступны и включены через флаги
+    # Каждый датасет управляется отдельным флагом в конфиге
+    use_vqav2 = config.dataset.get("use_vqav2", False)
+    use_textvqa = config.dataset.get("use_textvqa", False)
+    use_textvqa_experiments = config.dataset.get("use_textvqa_experiments", False)
+    use_vqav2_experiments = config.dataset.get("use_vqav2_experiments", False)
+    use_clevr = config.dataset.get("use_clevr", False)
+    use_docvqa = config.dataset.get("use_docvqa", False)
+    use_kvasir = config.dataset.get("use_kvasir", False)
+    
+    if use_vqav2 and train_dataloader_vqav2 is not None:
+        iterables["vqav2_flow"] = train_dataloader_vqav2
+        logger.info("VQAv2 dataloader added to combined loader")
+    
+    if use_textvqa and train_dataloader_textvqa is not None:
+        iterables["textvqa_flow"] = train_dataloader_textvqa
+        logger.info("TextVQA dataloader added to combined loader")
+    
+    if use_textvqa_experiments and train_dataloader_textvqa_experiments is not None:
+        iterables["textvqa_experiments_flow"] = train_dataloader_textvqa_experiments
+        logger.info("TextVQA Experiments dataloader added to combined loader")
+    
+    if use_vqav2_experiments and train_dataloader_vqav2_experiments is not None:
+        iterables["vqav2_experiments_flow"] = train_dataloader_vqav2_experiments
+        logger.info("VQAv2 Experiments dataloader added to combined loader")
+    
+    if use_clevr and train_dataloader_clevr is not None:
+        iterables["clevr_flow"] = train_dataloader_clevr
+        logger.info("CLEVR dataloader added to combined loader")
+    
+    if use_docvqa and train_dataloader_docvqa is not None:
+        iterables["docvqa_flow"] = train_dataloader_docvqa
+        logger.info("DocVQA dataloader added to combined loader")
+    
+    if use_kvasir and train_dataloader_kvasir is not None:
+        iterables["kvasir_flow"] = train_dataloader_kvasir
+        logger.info("Kvasir-VQA dataloader added to combined loader")
 
     combined_dataloader = CombinedLoader(
         iterables, mode=config.dataset.combined_loader_mode

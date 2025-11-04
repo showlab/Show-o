@@ -1008,7 +1008,8 @@ class PhiDecoderLayer(nn.Module):
         use_cache: Optional[bool] = False,
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         input_ids: Optional[torch.LongTensor] = None,
-        moe_temperature: Optional[float] = None
+        moe_temperature: Optional[float] = None,
+        moe_domain_id: Optional[str] = None,
     ) -> Tuple[
         torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]
     ]:
@@ -1050,6 +1051,8 @@ class PhiDecoderLayer(nn.Module):
             mlp_forward_args['input_ids'] = input_ids
         if hasattr(self.mlp, 'forward') and 'temperature' in self.mlp.forward.__code__.co_varnames:
             mlp_forward_args['temperature'] = moe_temperature
+        if hasattr(self.mlp, 'forward') and 'domain_id' in self.mlp.forward.__code__.co_varnames:
+            mlp_forward_args['domain_id'] = moe_domain_id
         ff = self.resid_dropout(self.mlp(hidden_states, **mlp_forward_args))
         hidden_states = attn_outputs + ff + residual
         outputs = (hidden_states,)
@@ -1121,6 +1124,7 @@ class PhiModel(PhiPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         moe_temperature: Optional[float] = None,
+        moe_domain_id: Optional[str] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         output_attentions = (
             output_attentions
@@ -1228,6 +1232,7 @@ class PhiModel(PhiPreTrainedModel):
                     use_cache=use_cache,
                     input_ids=input_ids,
                     moe_temperature=moe_temperature,
+                    moe_domain_id=moe_domain_id,
                 )
 
             hidden_states = layer_outputs[0]
@@ -1320,6 +1325,7 @@ class PhiForCausalLM(PhiPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         moe_temperature: Optional[float] = None,
+        moe_domain_id: Optional[str] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
@@ -1373,6 +1379,7 @@ class PhiForCausalLM(PhiPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             moe_temperature=moe_temperature,
+            moe_domain_id=moe_domain_id,
         )
 
         hidden_states = outputs[0]
