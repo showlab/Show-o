@@ -302,12 +302,22 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
                 image_embeds_gen = rearrange(image_embeds_gen, 'b t l d -> b (t l) d')
 
             # go through semantic layers
+        # go through semantic layers
             p = self.config.patch_size
             h_, w_ = h // p, w // p
-            # specific for fixed resolution of 432x432
-            if self.position_embedding.weight.shape[0] == self.image_position_ids.shape[-1]:
+            actual_seq_len = h_ * w_
+            # Check real input shape with model config for position embedding
+            if actual_seq_len != self.image_position_ids.shape[-1]:
+                print(f"Dynamically recreating image_position_ids: {self.image_position_ids.shape[-1]} -> {actual_seq_len}")
+                self.register_buffer(
+                    "image_position_ids",
+                    torch.arange(actual_seq_len, device=self.image_position_ids.device).expand((1, -1)),
+                    persistent=False
+                )
+            if actual_seq_len == self.position_embedding.weight.shape[0]:
                 image_embeds_und = image_embeds_und + self.position_embedding(self.image_position_ids)
                 image_embeds_und = self.und_trans(image_embeds_und)['last_hidden_state']
+                
             # interpolate position embeddings for dynamic resolution
             else:
                 image_embeds_und = image_embeds_und + interpolate_pos_encoding(
