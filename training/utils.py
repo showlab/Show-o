@@ -6,8 +6,8 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from typing import Any, List, Tuple, Union
 from torch.optim import AdamW
 import tempfile
-
-
+import os
+import shutil
 
 ##################################################
 #              config utils
@@ -238,11 +238,17 @@ def image_transform(image, resolution=256, normalize=True):
     return image
 
 
-def get_optimizer(optimizer_config, named_parameters, logger):
+def get_optimizer(optimizer_config, named_parameters, logger, moe_config=None):
     no_decay = ["bias", "layer_norm.weight", "mlm_ln.weight", "embeddings.weight"]
     optimizer_params = optimizer_config.params
     optimizer_type = optimizer_config.name
-    moe_lr = optimizer_params.get("moe_learning_rate", optimizer_params.learning_rate)
+    
+    # Приоритет: moe.learning_rate > optimizer.params.moe_learning_rate > optimizer.params.learning_rate
+    if moe_config is not None and "learning_rate" in moe_config and moe_config["learning_rate"] is not None:
+        moe_lr = float(moe_config["learning_rate"])
+    else:
+        moe_lr = optimizer_params.get("moe_learning_rate", optimizer_params.learning_rate)
+    
     base_lr = optimizer_params.learning_rate
 
     moe_params_decay = []

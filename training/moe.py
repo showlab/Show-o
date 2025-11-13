@@ -31,11 +31,47 @@ class SmallPhiMLP(nn.Module):
 
 
 class MoE(nn.Module):
-    def __init__(self, num_experts, hidden_size, top_k, config: PhiConfig, template_mlp: Optional[nn.Module] = None, noise_std: float = 1e-3,
-                 modality_init_hardness: float = 1.0, modality_init_steps: int = 1000, modality_init_hardness_min: float = 0.2,
-                 use_gumbel: bool = False):
+    def __init__(
+        self, 
+        num_experts,
+        hidden_size,
+        top_k,
+        config: PhiConfig,
+        template_mlp: Optional[nn.Module] = None,
+        noise_std: float = 1e-3,
+        use_modality_bias: bool = False,
+        use_domain_bias: bool = False,
+        modality_init_hardness: float = 1.0,
+        modality_init_steps: int = 1000, 
+        modality_init_hardness_min: float = 0.2,
+        domain_init_hardness: float = 1.0,
+        domain_init_steps: int = 1000,
+        domain_init_hardness_min: float = 0.0,
+        use_gumbel: bool = False,
+        gate_capacity: Optional[float] = None,
+        random_routing: bool = False,
+        domain_to_expert_map: Optional[dict] = None,
+    ):
         super().__init__()
-        self.gate = GShardGate(hidden_size, num_experts, world_size=4, top_k=top_k, gate_bias=True, use_gumbel=use_gumbel)
+        # Используем gate_capacity если задан, иначе дефолтное значение (1.2, 2.4)
+        # gate_capacity может быть числом (например 2.0) или tuple (1.2, 2.4)
+        if gate_capacity is not None:
+            if isinstance(gate_capacity, (int, float)):
+                capacity_tuple = (float(gate_capacity), float(gate_capacity))
+            else:
+                capacity_tuple = gate_capacity
+        else:
+            capacity_tuple = (1.2, 2.4)  # дефолт от GShard
+        
+        self.gate = GShardGate(
+            hidden_size, 
+            num_experts, 
+            world_size=4, 
+            top_k=top_k, 
+            capacity=capacity_tuple,
+            random_routing=random_routing,
+            gate_bias=True
+        )
         self.num_experts = num_experts
         self.hidden_size = hidden_size
         self.top_k = top_k
@@ -43,7 +79,7 @@ class MoE(nn.Module):
         tot_expert = num_experts * 4  # world_size=4
         self.register_buffer('modality_bias_text', torch.zeros(tot_expert))
         self.register_buffer('modality_bias_image', torch.zeros(tot_expert))
-        init_bias_val = 10.0
+        init_bias_val = 0.0
         for rank in range(4):  # world_size=4
             start_text = rank * num_experts
             end_text = start_text + num_text_experts
@@ -51,9 +87,34 @@ class MoE(nn.Module):
             end_image = start_image + num_text_experts
             self.modality_bias_text[start_text:end_text] = init_bias_val
             self.modality_bias_image[start_image:end_image] = init_bias_val
+        self.use_modality_bias = bool(use_modality_bias)
+        self.use_domain_bias = bool(use_domain_bias)
         self.modality_init_hardness = float(modality_init_hardness)
         self.modality_init_steps = int(modality_init_steps)
         self.modality_init_hardness_min = float(modality_init_hardness_min)
+        self.domain_init_hardness = float(domain_init_hardness)
+        self.domain_init_steps = int(domain_init_steps)
+        self.domain_init_hardness_min = float(domain_init_hardness_min)
+        self.domain_to_expert_map = domain_to_expert_map or {}
+        self.world_size = 4
+        self._domain_bias_buffer_map = {}
+        for idx, (domain_name, expert_list) in enumerate(self.domain_to_expert_map.items()):
+            if not expert_list:
+                continue
+            bias_vec = torch.zeros(tot_expert, dtype=torch.float32)
+            for rank in range(self.world_size):
+                base = rank * num_experts
+                for expert_id in expert_list:
+                    if 0 <= expert_id < num_experts:
+                        bias_vec[base + expert_id] = 1.0
+            buffer_name = f"_domain_bias_vec_{idx}"
+            self.register_buffer(buffer_name, bias_vec)
+            self._domain_bias_buffer_map[str(domain_name)] = buffer_name
+        
+        # Если use_modality_bias отключен, обнуляем bias buffers
+        if not self.use_modality_bias:
+            self.modality_bias_text.zero_()
+            self.modality_bias_image.zero_()
         self.experts = nn.ModuleList()
         if template_mlp is not None:
             for _ in range(self.num_experts):
@@ -64,7 +125,9 @@ class MoE(nn.Module):
                 self.experts.append(expert)
         else:
             self.experts = nn.ModuleList([SmallPhiMLP(config, scale_factor=1) for _ in range(self.num_experts)])
-        self.alpha = nn.Parameter(torch.randn(self.num_experts))
+        # Постоянный множитель для регулировки выходов экспертов. Регистрируем как buffer,
+        # чтобы избежать ошибок DDP, если некоторые эксперты не используются в итерации.
+        self.register_buffer('alpha', torch.ones(self.num_experts))
         self._step_count = 0
         self._log_frequency = 100
         self._global_step = 0
@@ -83,15 +146,23 @@ class MoE(nn.Module):
         self._global_step = global_step
 
 
-    def forward(self, hidden_states, input_ids=None, temperature: Optional[float] = None, domain_id: Optional[str] = None):
+    def forward(
+        self,
+        hidden_states,
+        input_ids=None,
+        temperature: Optional[float] = None,
+        domain_id: Optional[str] = None,
+        bias: Optional[torch.Tensor] = None,
+    ):
         device = hidden_states.device
         batch_size, seq_len, hidden_size = hidden_states.shape
         hidden_states_flat = hidden_states.view(-1, hidden_size)  # [B*L, H]
         B = hidden_states_flat.shape[0]
 
-        # Определяем модальность и применяем bias для инициализации
         modality_bias = None
-        if input_ids is not None and self.modality_init_hardness > 0:
+        if hasattr(self, 'use_modality_bias') and not self.use_modality_bias:
+            pass
+        elif input_ids is not None and self.modality_init_hardness > 0:
             # Вычисляем текущую hardness (линейное уменьшение от max до min)
             # Не убираем bias полностью - оставляем минимальное значение для мягкого сигнала
             if self._global_step < self.modality_init_steps:
@@ -104,7 +175,6 @@ class MoE(nn.Module):
             if hardness > 0:
                 modality = self._get_token_modality(input_ids.view(-1))
                 if modality is not None:
-                    # Для текстовых токенов (modality == 0) используем text bias, для изображений (== 1) — image bias
                     text_mask = (modality == 0)
                     image_mask = (modality == 1)
                     # Создаем bias для каждого токена: [B, E_tot]
@@ -113,24 +183,71 @@ class MoE(nn.Module):
                         modality_bias[text_mask] = self.modality_bias_text.unsqueeze(0) * hardness
                     if image_mask.any():
                         modality_bias[image_mask] = self.modality_bias_image.unsqueeze(0) * hardness
-                    # Передаем per-token bias для корректного routing
+        total_bias = None
+        if modality_bias is not None:
+            total_bias = modality_bias
 
-        gate_idx, gate_score = self.gate(hidden_states_flat, temperature=temperature, modality_bias=modality_bias)
+        domain_bias_tensor = None
+        if self.use_domain_bias and domain_id is not None:
+            if self._global_step < self.domain_init_steps:
+                progress = self._global_step / max(self.domain_init_steps, 1)
+                domain_hardness = self.domain_init_hardness - (
+                    self.domain_init_hardness - self.domain_init_hardness_min
+                ) * progress
+            else:
+                domain_hardness = self.domain_init_hardness_min
+
+            if domain_hardness > 0:
+                domain_key = str(domain_id)
+                buffer_name = self._domain_bias_buffer_map.get(domain_key)
+                if buffer_name is not None:
+                    domain_bias_vector = getattr(self, buffer_name)
+                    domain_bias_tensor = (
+                        domain_bias_vector.unsqueeze(0)
+                        .expand(B, -1)
+                        .to(device=device, dtype=hidden_states.dtype)
+                        * domain_hardness
+                    )
+
+        if domain_bias_tensor is not None:
+            if total_bias is None:
+                total_bias = domain_bias_tensor.to(device=device, dtype=hidden_states.dtype)
+            else:
+                total_bias = total_bias + domain_bias_tensor.to(device=device, dtype=hidden_states.dtype)
+
+        if bias is not None:
+            bias = bias.to(device=device, dtype=hidden_states.dtype)
+            if total_bias is None:
+                total_bias = bias
+            else:
+                total_bias = total_bias + bias
+
+        gate_idx, gate_score = self.gate(hidden_states_flat, temperature=temperature, bias=total_bias)
+        
+        # Определяем overflowed токены: те, у которых оба эксперта топ1 и топ2 равны -1
+        overflowed_mask = (gate_idx[:, 0] == -1) & (gate_idx[:, 1] == -1)
+        
         out_flat = torch.zeros(B, hidden_size, device=device, dtype=hidden_states.dtype)
+        
         for k in range(self.top_k):
             expert_indices = gate_idx[:, k]
             weights = gate_score[:, k]
             for expert_id in range(self.num_experts):
-                mask = expert_indices == expert_id
+                mask = (expert_indices == expert_id) & (~overflowed_mask)
                 if mask.any():
                     expert_input = hidden_states_flat[mask]
                     expert_output = self.experts[expert_id](expert_input)
                     weight = weights[mask] * self.alpha[expert_id]
                     out_flat[mask] += expert_output * weight.unsqueeze(-1)
+        
+        # When both experts exceed capacity, token passes via residual connection
+        if overflowed_mask.any():
+            out_flat[overflowed_mask] = hidden_states_flat[overflowed_mask]
 
         output = out_flat.view(batch_size, seq_len, hidden_size)
         self._step_count += 1
-        should_log = (self._step_count % self._log_frequency == 0)
+        # Используем _global_step для проверки, чтобы все домены логировались одновременно
+        should_log = (self._global_step > 0) and (self._global_step % self._log_frequency == 0)
         if hasattr(self, '_log_gates') and self._log_gates and should_log:
             self._log_gate_distribution(gate_idx, gate_score.detach(), input_ids, domain_id=domain_id)
 

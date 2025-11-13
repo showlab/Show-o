@@ -6,6 +6,7 @@ Adapted from FastMoE: https://github.com/laekov/fastmoe
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Optional
 
 from .base_gate import BaseGate
 
@@ -25,12 +26,14 @@ class NaiveGate(BaseGate):
         self.gate = nn.Linear(d_model, self.tot_expert, bias=gate_bias)
         self.top_k = top_k
 
-    def forward(self, inp, return_all_scores=False):
+    def forward(self, inp, return_all_scores=False, bias: Optional[torch.Tensor] = None):
         r"""
         The naive implementation simply calculates the top-k of a linear layer's
         output.
         """
         gate = self.gate(inp)
+        if bias is not None:
+            gate = gate + bias.to(device=gate.device, dtype=gate.dtype)
         gate_top_k_val, gate_top_k_idx = torch.topk(
             gate, k=self.top_k, dim=-1, largest=True, sorted=False
         )  # [.. x top_k]

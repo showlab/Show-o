@@ -127,8 +127,7 @@ def train_step(
         "kvasir_flow",
     ]
     
-    # Определяем batch_size_mmu и domain_id из первого найденного доменного flow'а
-    batch_size_mmu = batch["mmu_flow"]["images"].shape[0]  # По умолчанию
+    batch_size_mmu = batch["mmu_flow"]["images"].shape[0]
     domain_id = None
     domain_ids = []
     
@@ -136,11 +135,9 @@ def train_step(
         if flow_key in batch:
             if domain_id is None:  # Первый найденный домен
                 batch_size_mmu = batch[flow_key]["images"].shape[0]
-                domain_id = flow_key[:-5]  # Убираем "_flow" из конца
-            domain_ids.append(flow_key[:-5])  # Добавляем все найденные домены
+                domain_id = flow_key[:-5]
+            domain_ids.append(flow_key[:-5])
     
-    if global_step < 5 and domain_ids:
-        logger.info(f"📊 Step {global_step}: Домены в батче: {domain_ids}, используемый domain_id: {domain_id}")
 
     # Build T2I sequences
     pixel_values, texts = batch["t2i_flow"]["images"], batch["t2i_flow"]["input_ids"]
@@ -181,13 +178,10 @@ def train_step(
     input_ids = torch.cat((input_ids_t2i, input_ids_lm.to(input_ids_t2i.device)), dim=0)
     labels = torch.cat((labels_t2i, labels_lm.to(input_ids_t2i.device)), dim=0)
 
-    # Определяем все доменные flow'ы, которые присутствуют в батче
     present_domain_flows = [flow_key for flow_key in domain_flows if flow_key in batch]
-    
-    # Для обратной совместимости используем первый домен (приоритет экспериментальным)
     mmu_flow_key = "mmu_flow"
     if present_domain_flows:
-        mmu_flow_key = present_domain_flows[0]  # Первый домен из приоритетного списка
+        mmu_flow_key = present_domain_flows[0]
     
     is_domain_flow = mmu_flow_key in domain_flows
     
@@ -279,10 +273,9 @@ def train_step(
         # logger.info("Labels: {}".format(labels))
 
     current_temperature = temp_scheduler.get_last_lr()[0]
-    
-    # Обрабатываем каждый домен отдельно для сбора статистики MoE
-    # Это нужно делать даже если в батче только один домен, чтобы собирать статистику для всех доменов
     if len(present_domain_flows) >= 1 and config.get("moe", {}).get("enabled", False):
+        unwrapped_model = accelerator.unwrap_model(model)
+        
         # Обрабатываем каждый домен отдельно для сбора gate distributions
         # Важно: обрабатываем ВСЕ домены из present_domain_flows
         for flow_key in present_domain_flows:
@@ -316,8 +309,7 @@ def train_step(
                 eoi_id=int(uni_prompting.sptids_dict["<|eoi|>"]),
             ).to(mask_dtype)
             
-            # Forward pass только для сбора статистики (без градиентов)
-            with torch.no_grad():
+            with torch.set_grad_enabled(False):
                 _ = model(
                     input_ids=input_ids_domain_processed,
                     input_embeddings=None,
@@ -358,13 +350,40 @@ def train_step(
         loss_mmu.repeat(config.training.batch_size_mmu)
     ).mean()
 
-    # MoE balance loss
     if config.get("moe", {}).get("enabled", False):
         balance_loss, num_moe_layers = collect_moe_balance_losses(model)
         if num_moe_layers == 0:
             logger.warning(f"⚠️ MoE enabled but num_moe_layers = {num_moe_layers}")
         balance_coeff = balance_scheduler.get_last_lr()[0]
         print(f'balance_coeff: {balance_coeff}')
+        
+        # Логируем layer-expert heatmap каждые 50 шагов (когда global_step кратен 50)
+        should_log_layer_expert = (global_step > 0) and ((global_step + 1) % 50 == 0)
+        if should_log_layer_expert and mlflow_client is not None and mlflow_run_id is not None:
+            from moe_visualization import MoEVisualizer
+            from training.moe_mlflow_logger import MoEMLflowLogger
+            
+            unwrapped_model = accelerator.unwrap_model(model)
+            layer_expert_counts = {}
+            
+            for layer_idx, layer in enumerate(unwrapped_model.showo.model.layers):
+                if hasattr(layer, "mlp") and hasattr(layer.mlp, "experts"):
+                    # Получаем текущие expert_counts из последнего логирования
+                    if hasattr(layer.mlp, "_gate_distribution_history") and layer.mlp._gate_distribution_history:
+                        # Берем последний шаг из истории
+                        last_step = max(layer.mlp._gate_distribution_history.keys())
+                        expert_counts = layer.mlp._gate_distribution_history.get(last_step, {})
+                        if expert_counts:
+                            layer_expert_counts[layer_idx] = expert_counts
+            
+            if layer_expert_counts:
+                visualizer = MoEVisualizer(num_experts=config.moe.num_experts)
+                heatmap_bytes = visualizer.create_layer_expert_activation_heatmap(
+                    layer_expert_counts, global_step=global_step + 1
+                )
+                
+                mlflow_logger = MoEMLflowLogger(mlflow_client=mlflow_client, mlflow_run_id=mlflow_run_id)
+                mlflow_logger.log_layer_expert_heatmap(global_step + 1, heatmap_bytes)
     else:
         print(f'Setting balance_loss and balance_coeff to 0.0')
         balance_loss = torch.tensor(0.0, device=accelerator.device)
@@ -384,7 +403,6 @@ def train_step(
     # Backward pass
     accelerator.backward(loss)
 
-    # Очищаем кэш GPU для освобождения памяти
     if (
         torch.cuda.is_available()
         and (global_step + 1) % config.training.gradient_accumulation_steps == 0
@@ -501,7 +519,7 @@ def collect_moe_balance_losses(model):
             if hasattr(layer.mlp.gate, "get_loss") and layer.mlp.gate.has_loss:
                 gate_loss = layer.mlp.gate.get_loss(
                     clear=True
-                )  # clear=True чтобы не накапливать
+                )
                 if gate_loss is not None:
                     total_balance_loss += gate_loss
                     num_moe_layers += 1
@@ -737,10 +755,19 @@ def main():
             mlflow_client=mlflow_client,
             mlflow_run_id=mlflow_run_id,
             special_tokens=special_tokens,
+            use_modality_bias=config.moe['use_modality_bias'],
+            use_domain_bias=config.moe['use_domain_bias'],
             modality_init_hardness=config.moe["modality_init_hardness"],
             modality_init_steps=config.moe["modality_init_steps"],
             modality_init_hardness_min=config.moe["modality_init_hardness_min"],
-            use_gumbel=config.moe["use_gumbel"])
+            domain_init_hardness=config.moe["domain_init_hardness"],
+            domain_init_steps=config.moe["domain_init_steps"],
+            domain_init_hardness_min=config.moe["domain_init_hardness_min"],
+            use_gumbel=config.moe["use_gumbel"],
+            gate_capacity=config.moe.get("gate_capacity", None),
+            random_routing=config.moe.get("random_routing", False),
+            domain_to_expert_map=config.moe.get("domain_to_expert_map", None),
+        )
 
     mask_id = model.mask_token_id
 
@@ -751,6 +778,7 @@ def main():
         optimizer_config=config.optimizer,
         named_parameters=model.named_parameters(),
         logger=logger,
+        moe_config=config.get("moe", None) if config.get("moe", {}).get("enabled", False) else None,
     )
 
     # Create mask scheduler
@@ -783,17 +811,30 @@ def main():
         milestones=[max(int(balance_warmup_steps), 1)],
     )
 
-    temp_start = float(config.moe["temp_start"]) if "temp_start" in config.moe else 100.0
-    temp_end = float(config.moe["temp_end"]) if "temp_end" in config.moe else 1.0
-    temp_steps = int(config.moe["temp_steps"]) if "temp_steps" in config.moe else int(config.training.max_train_steps)
-    _temp_dummy_param = nn.Parameter(torch.zeros((), device=accelerator.device))
-    temp_optimizer = torch.optim.SGD([{"params": [_temp_dummy_param], "lr": temp_start}])
-    def _linear_factor(step: int):
-        s = min(int(step), int(max(temp_steps, 1)))
-        a = s / max(temp_steps, 1)
-        return (1.0 - a) + a * (temp_end / max(temp_start, 1e-8))
-    from torch.optim.lr_scheduler import LambdaLR
-    temp_scheduler = LambdaLR(temp_optimizer, lr_lambda=_linear_factor)
+    # Настройка температуры для MoE: если temp_fixed задан, используем фиксированную, иначе scheduler
+    temp_fixed = config.moe.get("temp_fixed", None)
+    if temp_fixed is not None:
+        # Фиксированная температура
+        temp_fixed_value = float(temp_fixed)
+        _temp_dummy_param = nn.Parameter(torch.zeros((), device=accelerator.device))
+        temp_optimizer = torch.optim.SGD([{"params": [_temp_dummy_param], "lr": temp_fixed_value}])
+        def _constant_factor(step: int):
+            return 1.0  # Всегда возвращаем 1.0, чтобы lr оставался temp_fixed_value
+        from torch.optim.lr_scheduler import LambdaLR
+        temp_scheduler = LambdaLR(temp_optimizer, lr_lambda=_constant_factor)
+    else:
+        # Scheduler с изменением температуры
+        temp_start = float(config.moe["temp_start"]) if "temp_start" in config.moe else 100.0
+        temp_end = float(config.moe["temp_end"]) if "temp_end" in config.moe else 1.0
+        temp_steps = int(config.moe["temp_steps"]) if "temp_steps" in config.moe else int(config.training.max_train_steps)
+        _temp_dummy_param = nn.Parameter(torch.zeros((), device=accelerator.device))
+        temp_optimizer = torch.optim.SGD([{"params": [_temp_dummy_param], "lr": temp_start}])
+        def _linear_factor(step: int):
+            s = min(int(step), int(max(temp_steps, 1)))
+            a = s / max(temp_steps, 1)
+            return (1.0 - a) + a * (temp_end / max(temp_start, 1e-8))
+        from torch.optim.lr_scheduler import LambdaLR
+        temp_scheduler = LambdaLR(temp_optimizer, lr_lambda=_linear_factor)
 
     ##################################
     #         DATALOADER             #
@@ -963,15 +1004,22 @@ def main():
                                 mlflow_run_id=mlflow_run_id,
                             )
 
-                        # Save model checkpoint (отключено)
                         # if (global_step + 1) % config.experiment.save_every == 0:
                         #     save_checkpoint(model, config, accelerator, global_step + 1)
 
                         # print(f"global_step: {global_step + 1}, config.experiment.generate_every: {config.experiment.generate_every}")
                         # Debug logging for generation
-                        should_generate = (global_step + 1) == 1 or (global_step + 1) % config.experiment.generate_every == 0
-                        if (global_step + 1) % config.experiment.generate_every == 0:
-                            logger.info(f"🎨 Step {global_step + 1}: should_generate={should_generate}, is_main_process={accelerator.is_main_process}")
+                        step_plus_one = global_step + 1
+                        should_generate = (
+                            step_plus_one == 1
+                            or step_plus_one % config.experiment.generate_every == 0
+                        )
+                        if (
+                            step_plus_one % config.experiment.generate_every == 0
+                        ):
+                            logger.info(
+                                f"🎨 Step {step_plus_one}: should_generate={should_generate}, is_main_process={accelerator.is_main_process}"
+                            )
 
                         if should_generate and accelerator.is_main_process:
                             generate_images(
@@ -1001,7 +1049,6 @@ def main():
                                 mlflow_run_id=mlflow_run_id,
                             )
 
-                            # Отключаем evaluate_mmu для моделей с CLIP ViT (несовместимо с VQ tokens)
                             # if not config.model.showo.get("w_clip_vit", False):
                             #     evaluate_mmu(
                             #         model,

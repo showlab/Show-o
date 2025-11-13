@@ -228,11 +228,13 @@ def create_dataloaders(
     train_dataloader_kvasir = None
     
     # VQAv2
+    train_dataloader_vqav2 = None
     if hasattr(dataset_config, 'vqav2_data_file_path') and dataset_config.vqav2_data_file_path:
-        if os.path.exists(dataset_config.vqav2_data_file_path):
+        batch_size_vqav2 = config.training.batch_size_vqav2 if hasattr(config.training, 'batch_size_vqav2') else config.training.batch_size_mmu
+        if batch_size_vqav2 > 0 and os.path.exists(dataset_config.vqav2_data_file_path):
             train_dataloader_vqav2 = get_domain_data_loader(
                 tokenizer,
-                batch_size=config.training.batch_size_vqav2 if hasattr(config.training, 'batch_size_vqav2') else config.training.batch_size_mmu,
+                batch_size=batch_size_vqav2,
                 num_workers=dataset_config.num_workers,
                 world_size=accelerator.num_processes,
                 local_rank=accelerator.process_index,
@@ -247,11 +249,13 @@ def create_dataloaders(
             logger.warning(f"VQAv2 dataset file not found: {dataset_config.vqav2_data_file_path}. Skipping VQAv2 dataloader.")
     
     # TextVQA
+    train_dataloader_textvqa = None
     if hasattr(dataset_config, 'textvqa_data_file_path') and dataset_config.textvqa_data_file_path:
-        if os.path.exists(dataset_config.textvqa_data_file_path):
+        batch_size_textvqa = config.training.batch_size_textvqa if hasattr(config.training, 'batch_size_textvqa') else config.training.batch_size_mmu
+        if batch_size_textvqa > 0 and os.path.exists(dataset_config.textvqa_data_file_path):
             train_dataloader_textvqa = get_domain_data_loader(
                 tokenizer,
-                batch_size=config.training.batch_size_textvqa if hasattr(config.training, 'batch_size_textvqa') else config.training.batch_size_mmu,
+                batch_size=batch_size_textvqa,
                 num_workers=dataset_config.num_workers,
                 world_size=accelerator.num_processes,
                 local_rank=accelerator.process_index,
@@ -266,11 +270,13 @@ def create_dataloaders(
             logger.warning(f"TextVQA dataset file not found: {dataset_config.textvqa_data_file_path}. Skipping TextVQA dataloader.")
     
     # TextVQA Experiments (датасет для экспериментов MoE - 1000 семплов)
+    train_dataloader_textvqa_experiments = None
     if hasattr(dataset_config, 'textvqa_experiments_data_file_path') and dataset_config.textvqa_experiments_data_file_path:
-        if os.path.exists(dataset_config.textvqa_experiments_data_file_path):
+        batch_size_textvqa_experiments = config.training.batch_size_textvqa_experiments if hasattr(config.training, 'batch_size_textvqa_experiments') else config.training.batch_size_mmu
+        if batch_size_textvqa_experiments > 0 and os.path.exists(dataset_config.textvqa_experiments_data_file_path):
             train_dataloader_textvqa_experiments = get_domain_data_loader(
                 tokenizer,
-                batch_size=config.training.batch_size_textvqa_experiments if hasattr(config.training, 'batch_size_textvqa_experiments') else config.training.batch_size_mmu,
+                batch_size=batch_size_textvqa_experiments,
                 num_workers=dataset_config.num_workers,
                 world_size=accelerator.num_processes,
                 local_rank=accelerator.process_index,
@@ -285,11 +291,13 @@ def create_dataloaders(
             logger.warning(f"TextVQA Experiments dataset file not found: {dataset_config.textvqa_experiments_data_file_path}. Skipping TextVQA Experiments dataloader.")
     
     # VQAv2 Experiments (датасет для экспериментов MoE - 1000 семплов)
+    train_dataloader_vqav2_experiments = None
     if hasattr(dataset_config, 'vqav2_experiments_data_file_path') and dataset_config.vqav2_experiments_data_file_path:
-        if os.path.exists(dataset_config.vqav2_experiments_data_file_path):
+        batch_size_vqav2_experiments = config.training.batch_size_vqav2_experiments if hasattr(config.training, 'batch_size_vqav2_experiments') else config.training.batch_size_mmu
+        if batch_size_vqav2_experiments > 0 and os.path.exists(dataset_config.vqav2_experiments_data_file_path):
             train_dataloader_vqav2_experiments = get_domain_data_loader(
                 tokenizer,
-                batch_size=config.training.batch_size_vqav2 if hasattr(config.training, 'batch_size_vqav2') else config.training.batch_size_mmu,
+                batch_size=batch_size_vqav2_experiments,
                 num_workers=dataset_config.num_workers,
                 world_size=accelerator.num_processes,
                 local_rank=accelerator.process_index,
@@ -304,11 +312,13 @@ def create_dataloaders(
             logger.warning(f"VQAv2 Experiments dataset file not found: {dataset_config.vqav2_experiments_data_file_path}. Skipping VQAv2 Experiments dataloader.")
     
     # DocVQA
+    train_dataloader_docvqa = None
     if hasattr(dataset_config, 'docvqa_data_file_path') and dataset_config.docvqa_data_file_path:
-        if os.path.exists(dataset_config.docvqa_data_file_path):
+        batch_size_docvqa = config.training.batch_size_docvqa if hasattr(config.training, 'batch_size_docvqa') else config.training.batch_size_mmu
+        if batch_size_docvqa > 0 and os.path.exists(dataset_config.docvqa_data_file_path):
             train_dataloader_docvqa = get_domain_data_loader(
                 tokenizer,
-                batch_size=config.training.batch_size_docvqa if hasattr(config.training, 'batch_size_docvqa') else config.training.batch_size_mmu,
+                batch_size=batch_size_docvqa,
                 num_workers=dataset_config.num_workers,
                 world_size=accelerator.num_processes,
                 local_rank=accelerator.process_index,
@@ -323,11 +333,13 @@ def create_dataloaders(
             logger.warning(f"DocVQA dataset file not found: {dataset_config.docvqa_data_file_path}. Skipping DocVQA dataloader.")
     
     # Kvasir-VQA
+    train_dataloader_kvasir = None
     if hasattr(dataset_config, 'kvasir_data_file_path') and dataset_config.kvasir_data_file_path:
-        if os.path.exists(dataset_config.kvasir_data_file_path):
+        batch_size_kvasir = config.training.batch_size_kvasir if hasattr(config.training, 'batch_size_kvasir') else config.training.batch_size_mmu
+        if batch_size_kvasir > 0 and os.path.exists(dataset_config.kvasir_data_file_path):
             train_dataloader_kvasir = get_domain_data_loader(
                 tokenizer,
-                batch_size=config.training.batch_size_kvasir if hasattr(config.training, 'batch_size_kvasir') else config.training.batch_size_mmu,
+                batch_size=batch_size_kvasir,
                 num_workers=dataset_config.num_workers,
                 world_size=accelerator.num_processes,
                 local_rank=accelerator.process_index,
@@ -344,10 +356,11 @@ def create_dataloaders(
     # CLEVR
     train_dataloader_clevr = None
     if hasattr(dataset_config, 'clevr_data_file_path') and dataset_config.clevr_data_file_path:
-        if os.path.exists(dataset_config.clevr_data_file_path):
+        batch_size_clevr = config.training.batch_size_clevr if hasattr(config.training, 'batch_size_clevr') else config.training.batch_size_mmu
+        if batch_size_clevr > 0 and os.path.exists(dataset_config.clevr_data_file_path):
             train_dataloader_clevr = get_domain_data_loader(
                 tokenizer,
-                batch_size=config.training.batch_size_clevr if hasattr(config.training, 'batch_size_clevr') else config.training.batch_size_mmu,
+                batch_size=batch_size_clevr,
                 num_workers=dataset_config.num_workers,
                 world_size=accelerator.num_processes,
                 local_rank=accelerator.process_index,

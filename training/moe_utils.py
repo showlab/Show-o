@@ -1,8 +1,9 @@
 from typing import Optional
 from training.moe import MoE
-from moe_mlflow_logger import MoEMLflowLogger
 import re
 import torch
+from training.moe_mlflow_logger import MoEMLflowLogger
+from moe_visualization import MoEVisualizer
 
 
 def patch_model_with_moe(
@@ -12,10 +13,18 @@ def patch_model_with_moe(
     top_k=2,
     special_tokens=None,
     noise_std: float = 1e-2,
+    use_modality_bias: bool = False,
+    use_domain_bias: bool = False,
     modality_init_hardness: float = 1.0,
     modality_init_steps: int = 1000,
     modality_init_hardness_min: float = 0.2,
-    use_gumbel: bool = False
+    domain_init_hardness: float = 1.0,
+    domain_init_steps: int = 1000,
+    domain_init_hardness_min: float = 0.0,
+    use_gumbel: bool = False,
+    gate_capacity: Optional[int] = None,
+    random_routing: bool = False,
+    domain_to_expert_map: Optional[dict] = None,
 ):
     total_layers = len(model.showo.model.layers)
     print(f"🔧 Патчим модель с MoE:")
@@ -39,14 +48,21 @@ def patch_model_with_moe(
                 config=config_phi,
                 template_mlp=original_mlp,
                 noise_std=noise_std,
+                use_modality_bias=use_modality_bias,
+                use_domain_bias=use_domain_bias,
                 modality_init_hardness=modality_init_hardness,
                 modality_init_steps=modality_init_steps,
                 modality_init_hardness_min=modality_init_hardness_min,
-                use_gumbel=use_gumbel
+                domain_init_hardness=domain_init_hardness,
+                domain_init_steps=domain_init_steps,
+                domain_init_hardness_min=domain_init_hardness_min,
+                use_gumbel=use_gumbel,
+                gate_capacity=gate_capacity,
+                random_routing=random_routing,
+                domain_to_expert_map=domain_to_expert_map,
             )
             moe_layer.to(next(original_mlp.parameters()).device)
-            print(f"    Инициализированы {num_experts} экспертов как копии FFN + шум (std={noise_std})")
-            moe_layer.enable_logging(log_gates=True, log_activations=True, log_frequency=100)
+            moe_layer.enable_logging(log_gates=True, log_activations=True, log_frequency=50)
             moe_layer.set_layer_id(layer_idx)
             if special_tokens is not None:
                 moe_layer.set_special_tokens(
@@ -57,7 +73,6 @@ def patch_model_with_moe(
                 )
             layer.mlp = moe_layer
             count_layers_to_patch -= 1
-    print("✓ Патчинг завершен")
     print(f"✓ Заменено слоев: {len(patched_layers)} из {total_layers} ({100*len(patched_layers)/total_layers:.1f}%)")
     print(f"✓ Слои с MoE: {patched_layers}")
     print(f"✓ Слои с оригинальным FFN (предобученным): {[i for i in range(total_layers) if i not in patched_layers]}")
@@ -78,10 +93,7 @@ def freeze_non_moe_params(model):
                     min_moe_layer = layer_idx
     
     if min_moe_layer is None:
-        print("⚠️  MoE слои не найдены")
-        return model
-    
-    print(f"🔥 Размораживаем все слои начиная с {min_moe_layer} (первый MoE слой)")
+        raise Exception("MoE слои не найдены")
     
     trainable_params = 0
     total_params = 0
@@ -97,14 +109,6 @@ def freeze_non_moe_params(model):
                     param.requires_grad = True
                     trainable_params += param.numel()
                     trainable_param_names.append(name)
-    
-    print(f"✓ Параметров: {total_params:,} total, {trainable_params:,} trainable ({100*trainable_params/total_params:.1f}%)")
-    if len(trainable_param_names) > 0:
-        print(f"✓ Разморожено {len(trainable_param_names)} параметров в суффиксе (слои {min_moe_layer}+):")
-        for name in trainable_param_names[:5]:
-            print(f"    - {name}")
-        if len(trainable_param_names) > 5:
-            print(f"    ... и еще {len(trainable_param_names) - 5}")
     return model
 
 
@@ -117,10 +121,18 @@ def patch_and_freeze_moe(
     mlflow_run_id: Optional[str] = None,
     special_tokens: Optional[dict] = None,
     noise_std: float = 1e-2,
+    use_modality_bias: bool = False,
+    use_domain_bias: bool = False,
     modality_init_hardness: float = 1.0,
     modality_init_steps: int = 1000,
     modality_init_hardness_min: float = 0.2,
-    use_gumbel: bool = False
+    domain_init_hardness: float = 1.0,
+    domain_init_steps: int = 1000,
+    domain_init_hardness_min: float = 0.0,
+    use_gumbel: bool = False,
+    gate_capacity: Optional[int] = None,
+    random_routing: bool = False,
+    domain_to_expert_map: Optional[dict] = None,
 ):
     model = patch_model_with_moe(
         model, 
@@ -129,18 +141,30 @@ def patch_and_freeze_moe(
         top_k, 
         special_tokens, 
         noise_std=noise_std,
+        use_modality_bias=use_modality_bias,
+        use_domain_bias=use_domain_bias,
         modality_init_hardness=modality_init_hardness, 
         modality_init_steps=modality_init_steps,
         modality_init_hardness_min=modality_init_hardness_min,
-        use_gumbel=use_gumbel
+        domain_init_hardness=domain_init_hardness,
+        domain_init_steps=domain_init_steps,
+        domain_init_hardness_min=domain_init_hardness_min,
+        use_gumbel=use_gumbel,
+        gate_capacity=gate_capacity,
+        random_routing=random_routing,
+        domain_to_expert_map=domain_to_expert_map,
     )
 
 
     if mlflow_client is not None and mlflow_run_id is not None:
         mlflow_logger = MoEMLflowLogger(mlflow_client=mlflow_client, mlflow_run_id=mlflow_run_id)
-        for layer in model.showo.model.layers:
+        for layer_idx, layer in enumerate(model.showo.model.layers):
             if hasattr(layer, 'mlp') and hasattr(layer.mlp, 'experts'):
                 layer.mlp.set_mlflow_logger(mlflow_logger)
+                visualizer = MoEVisualizer(num_experts=num_experts, layer_id=layer_idx)
+                layer.mlp.set_visualizer(visualizer)
+                layer.mlp._layer_id = layer_idx
+                layer.mlp.enable_logging(log_gates=True, log_activations=True, log_frequency=50)
     
     model = freeze_non_moe_params(model)
     return model
@@ -152,12 +176,10 @@ def save_moe_weights(model, path):
         if any(x in k for x in ['mlp.experts', 'mlp.gate', 'mlp.alpha'])
     }
     torch.save(moe_state, path)
-    print(f"💾 Сохранено {len(moe_state)} MoE параметров в {path}")
 
 
 def load_moe_weights(model, path):
     moe_weights = torch.load(path)
     model.load_state_dict(moe_weights, strict=False)
-    print(f"📥 Загружено {len(moe_weights)} MoE параметров из {path}")
     return model
 

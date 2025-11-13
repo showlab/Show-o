@@ -253,12 +253,7 @@ def generate_images(
         )
         new_img.paste(img, (0, 0))
         draw = ImageDraw.Draw(new_img)
-        try:
-            font = ImageFont.truetype(
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 14
-            )
-        except:
-            font = ImageFont.load_default()
+        font = ImageFont.load_default()   
         prompt_text = prompt[:100] + "..." if len(prompt) > 100 else prompt
         draw.text((5, img_height + 5), prompt_text, fill=(0, 0, 0), font=font)
         captioned_images.append(new_img)
@@ -374,12 +369,8 @@ def evaluate_mmu(
         )
         new_img.paste(pil_img, (0, 0))
         draw = ImageDraw.Draw(new_img)
-        try:
-            font = ImageFont.truetype(
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 12
-            )
-        except:
-            font = ImageFont.load_default()
+        font = ImageFont.load_default()
+            
 
         gt_text_str = gt_text[:80] + "..." if len(gt_text) > 80 else gt_text
         gen_text_str = gen_text[:80] + "..." if len(gen_text) > 80 else gen_text
@@ -573,10 +564,19 @@ def log_training_metrics(
         logs["lr"] = all_lrs[0]
 
     if mlflow_client is not None and mlflow_run_id is not None:
-        for metric_name, metric_value in logs.items():
-            mlflow_client.log_metric(
-                mlflow_run_id, metric_name, metric_value, step=global_step
-            )
+        try:
+            for metric_name, metric_value in logs.items():
+                mlflow_client.log_metric(
+                    mlflow_run_id, metric_name, metric_value, step=global_step
+                )
+            if logger is not None and global_step <= 400:
+                logger.info(f"✅ Отправлено {len(logs)} метрик в MLflow (step {global_step}, run_id={mlflow_run_id[:8]}...)")
+        except Exception as e:
+            if logger is not None:
+                logger.error(f"❌ Ошибка отправки метрик в MLflow: {e}", exc_info=True)
+    else:
+        if logger is not None and global_step <= 400:
+            logger.warning(f"⚠️ MLflow client или run_id отсутствуют: mlflow_client={mlflow_client is not None}, run_id={mlflow_run_id is not None}")
 
     if logger is not None:
         if len(all_lrs) >= 4:
