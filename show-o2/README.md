@@ -85,7 +85,9 @@ The Show-o2 checkpoints can be found on Hugging Face:
 ## Getting Started
 First, set up the environment:
 ```
-bash build_env.sh
+conda create -n showo2 python=3.10
+conda activate showo2
+pip install -r requirements.txt
 ```
 Login your wandb account on your machine or server.
 ```
