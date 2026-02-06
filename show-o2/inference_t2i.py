@@ -15,6 +15,7 @@
 
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
+import numpy as np
 from PIL import Image
 import wandb
 import torch
@@ -200,10 +201,11 @@ if __name__ == '__main__':
 
         inputs = processor(images=pil_images, return_tensors="pt")
 
-        # Check safety
+        # Check safety (safety_checker expects numpy arrays, not PIL Images)
+        np_images = [np.array(img) for img in pil_images]
         with torch.no_grad():
             checked_images, has_nsfw_concept = safety_checker(
-                images=pil_images,
+                images=np_images,
                 clip_input=inputs["pixel_values"]
             )
 
