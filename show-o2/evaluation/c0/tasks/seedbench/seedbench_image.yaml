@@ -1,0 +1,25 @@
+dataset_path: lmms-lab-encoder/SEED-Bench
+dataset_kwargs:
+  token: false
+task: seedbench_image
+test_split: test
+output_type: generate_until
+process_docs: !function utils.seed_process_image_docs
+doc_to_visual: !function utils.seed_doc_to_visual
+doc_to_text: !function utils.seed_doc_to_text
+doc_to_target: answer
+generation_kwargs:
+  max_new_tokens: 16
+  temperature: 0
+  do_sample: false
+  until:
+    - "ASSISTANT:"
+process_results: !function utils.seed_process_image_result
+metric_list:
+  - metric: seed_image
+    aggregation: !function utils.seed_aggregation_result
+    higher_is_better: true
+metadata:
+  version: 0.1
+  modality: image
+  checkpoint: showlab/show-o2-1.5B

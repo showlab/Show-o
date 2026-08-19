@@ -1,0 +1,22 @@
+{
+  "checkpoint": "/root/autodl-tmp/runs/showo2_mask2former_alignment/mask2former-online-5k-v2-20260808T104000Z/checkpoints/step-000500.pt",
+  "checkpoint_sha256": "f9669660c00c7ad084591d83bd6e99b7f2b1505a3f3b2f3e47d682b615bf1d90",
+  "init_checkpoint": "/root/autodl-tmp/runs/showo2_bprime/bprime-full-v2-20260808T030439Z/b1/checkpoints/step-000200.pt",
+  "loss_ablation": "original_mask_logits",
+  "loss_weights": {
+    "mask_bce": 0.01,
+    "mask_dice": 0.07,
+    "presence": 0.16,
+    "relation_distill": 0.5,
+    "relation_pass": 1.0,
+    "object_detect": 0.0
+  },
+  "selection": "canonical_rollback_baseline",
+  "step": 500,
+  "trainable_module": "drsa_adapter.generation_spatial",
+  "understanding_parameter_audit": {
+    "changed_common_parameters_vs_b1": 0,
+    "common_parameters": 28,
+    "generation_spatial_parameters_added": 11
+  }
+}

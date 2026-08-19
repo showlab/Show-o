@@ -25,6 +25,10 @@ from .modeling_utils import ConfigMixin, ModelMixin, register_to_config
 from .modules import DiffusionHeadConfig
 from .modules import ModulatedAttentionBlock, RMSNorm, PatchEmbed, TimestepEmbedder, FinalLayer
 from .qwen2 import Qwen2ForCausalLM
+from .spatial_alignment_adapter import (
+    DualRouteSpatialAlignmentAdapter,
+    GenerationSpatialAdapter,
+)
 
 
 class Showo2Qwen2_5(ModelMixin, ConfigMixin):
@@ -47,6 +51,14 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             num_diffusion_layers=10,
             add_time_embeds=True,
             add_qk_norm=False,
+            drsa_enabled=False,
+            drsa_relation_dim=256,
+            drsa_num_heads=8,
+            drsa_bias_hidden_dim=128,
+            generation_adapter_enabled=False,
+            generation_adapter_spatial_dim=604,
+            generation_adapter_num_heads=8,
+            generation_adapter_bias_hidden_dim=128,
             clip_pretrained_model_path="google/siglip-so400m-patch14-384",
             **kwargs,
     ):
@@ -87,6 +99,26 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             nn.Linear(clip_latent_dim + hidden_size, hidden_size),
             nn.GELU(),
             nn.Linear(hidden_size, hidden_size)
+        )
+        self.drsa_enabled = bool(drsa_enabled)
+        self.drsa_relation_dim = int(drsa_relation_dim)
+        self.drsa_adapter = (
+            DualRouteSpatialAlignmentAdapter(
+                hidden_size=hidden_size,
+                relation_dim=drsa_relation_dim,
+                num_heads=drsa_num_heads,
+                bias_hidden_dim=drsa_bias_hidden_dim,
+            ) if self.drsa_enabled else None
+        )
+        self.generation_adapter_enabled = bool(generation_adapter_enabled)
+        self.generation_adapter_active = True
+        self.generation_adapter = (
+            GenerationSpatialAdapter(
+                hidden_size=hidden_size,
+                spatial_dim=generation_adapter_spatial_dim,
+                num_heads=generation_adapter_num_heads,
+                bias_hidden_dim=generation_adapter_bias_hidden_dim,
+            ) if self.generation_adapter_enabled else None
         )
 
         # adjust for diffusion head
@@ -171,6 +203,7 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             output_hidden_states=True,
             max_seq_len=None,
             device='cuda:0',
+            use_generation_adapter_for_understanding=False,
             **kwargs,
     ):
         T = 0
@@ -219,6 +252,14 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
 
         # spatial (-temporal) fusion
         image_embeds = self.fusion_proj(torch.cat([image_embeds_und, image_embeds_gen], dim=-1))
+        drsa_relation_codes = kwargs.get("drsa_relation_codes")
+        if T == 0 and self.drsa_adapter is not None and drsa_relation_codes is not None:
+            image_embeds = self.drsa_adapter.apply_understanding(
+                image_embeds,
+                drsa_relation_codes,
+                grid_height=h_,
+                grid_width=w_,
+            )
 
         time_embeds = self.time_embed(t, dtype)
         if hasattr(self, 'time_embed_proj'):
@@ -236,6 +277,28 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
                         image_embeds[i * modality_positions.size(1) + j, :max(length - 1, 0)]
                 else:
                     input_embeds[i, offset:offset + length] = image_embeds[i * modality_positions.size(1) + j, :length]
+
+        if use_generation_adapter_for_understanding:
+            if T != 0:
+                raise ValueError(
+                    "the generation-adapter understanding bridge supports images only"
+                )
+            if self.generation_adapter is None:
+                raise RuntimeError(
+                    "the generation-adapter understanding bridge requires "
+                    "generation_adapter_enabled=True"
+                )
+            if not self.generation_adapter_active:
+                raise RuntimeError(
+                    "the generation-adapter understanding bridge requires an active adapter"
+                )
+            input_embeds = self.generation_adapter(
+                input_embeds,
+                modality_positions,
+                grid_height=h_,
+                grid_width=w_,
+                add_time_embeds=bool(self.config.add_time_embeds),
+            )
 
         outputs = self.showo(
             inputs_embeds=input_embeds,
@@ -266,6 +329,8 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             first_frame_as_cond=False,
             only_denoise_last_image=False,
             guidance_scale=0.0,
+            output_attentions=False,
+            output_diffusion_attentions=False,
             output_hidden_states=True,
             max_seq_len=None,
             device='cuda:0',
@@ -324,6 +389,14 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
 
             # spatial (-temporal) fusion
             image_embeds = self.fusion_proj(torch.cat([image_embeds_und, image_embeds_gen], dim=-1))
+            drsa_relation_codes = kwargs.get("drsa_relation_codes")
+            if T == 0 and self.drsa_adapter is not None and drsa_relation_codes is not None:
+                image_embeds = self.drsa_adapter.apply_understanding(
+                    image_embeds,
+                    drsa_relation_codes,
+                    grid_height=h_,
+                    grid_width=w_,
+                )
 
             if image_labels is not None:
                 if T == 0:
@@ -374,22 +447,45 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
                 inputs_embeds=input_embeds,
                 attention_mask=attention_mask,
                 # position_ids=position_ids,
+                output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states
             )
 
             logits, last_hidden_states = outputs['logits'], outputs['hidden_states'][-1]
+            if T == 0 and self.generation_adapter is not None and self.generation_adapter_active:
+                last_hidden_states = self.generation_adapter(
+                    last_hidden_states,
+                    modality_positions,
+                    grid_height=h_,
+                    grid_width=w_,
+                    add_time_embeds=bool(self.config.add_time_embeds),
+                )
+            elif T == 0 and self.drsa_adapter is not None and drsa_relation_codes is not None:
+                last_hidden_states = self.drsa_adapter.apply_generation(
+                    last_hidden_states,
+                    modality_positions,
+                    drsa_relation_codes,
+                    grid_height=h_,
+                    grid_width=w_,
+                    add_time_embeds=bool(self.config.add_time_embeds),
+                )
 
             # diffusion head to predict vector fields
             if hasattr(self, 'diff_proj'):
                 last_hidden_states = self.diff_proj(last_hidden_states)
             position_ids = torch.arange(last_hidden_states.shape[1], device=last_hidden_states.device).unsqueeze(0)
+            diffusion_attentions = [] if output_diffusion_attentions else None
             for layer in self.diffusion_head_a:
-                last_hidden_states = layer(hidden_states=last_hidden_states,
-                                           adaln_input=time_embeds,
-                                           attention_mask=attention_mask,
-                                           position_ids=position_ids,
-                                           modality_positions=modality_positions,
-                                           )[0]
+                layer_outputs = layer(hidden_states=last_hidden_states,
+                                      adaln_input=time_embeds,
+                                      attention_mask=attention_mask,
+                                      position_ids=position_ids,
+                                      modality_positions=modality_positions,
+                                      output_attentions=output_diffusion_attentions,
+                                      )
+                last_hidden_states = layer_outputs[0]
+                if output_diffusion_attentions:
+                    diffusion_attentions.append(layer_outputs[1])
             v_pred = self.diffusion_head_b(last_hidden_states, time_embeds, modality_positions)
 
             # [:v_pred.shape[0]] is the valid image labels (special case for interleaved data training)
@@ -462,6 +558,12 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
                             v_pred_[-1:, :, :]
                         ], dim=0)
 
+                if output_attentions and output_diffusion_attentions:
+                    return logits, v_pred_, outputs['attentions'], tuple(diffusion_attentions)
+                if output_diffusion_attentions:
+                    return logits, v_pred_, tuple(diffusion_attentions)
+                if output_attentions:
+                    return logits, v_pred_, outputs['attentions']
                 return logits, v_pred_
 
     @torch.no_grad()
@@ -478,6 +580,7 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             guidance_scale=0.0,
             **kwargs,
     ):
+        kwargs.pop("output_hidden_states", None)
         if guidance_scale > 0.0:
             if t.shape[-1] != text_tokens.shape[0]:
                 t_cond, t_uncond = torch.chunk(t, 2)
@@ -493,7 +596,8 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
                         only_denoise_last_image=only_denoise_last_image,
                         guidance_scale=guidance_scale,
                         output_hidden_states=True,
-                        max_seq_len=max_seq_len)
+                        max_seq_len=max_seq_len,
+                        **kwargs)
             v_cond, v_uncond = torch.chunk(v, 2)
             v = v_uncond + guidance_scale * (v_cond - v_uncond)
             return torch.cat([v, v], dim=0)
@@ -510,8 +614,116 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
                         only_denoise_last_image=only_denoise_last_image,
                         guidance_scale=guidance_scale,
                         output_hidden_states=True,
-                        max_seq_len=max_seq_len)
+                        max_seq_len=max_seq_len,
+                        **kwargs)
             return v
+
+    def t2i_generate_with_attentions(
+            self,
+            image_latents=None,
+            t=None,
+            text_tokens=None,
+            attention_mask=None,
+            modality_positions=None,
+            first_frame_as_cond=False,
+            only_denoise_last_image=False,
+            max_seq_len=None,
+            guidance_scale=0.0,
+            attention_source="qwen",
+            **kwargs,
+    ):
+        """Predict T2I velocity while retaining differentiable spatial attentions."""
+        kwargs.pop("output_hidden_states", None)
+        if attention_source not in {"qwen", "diffusion"}:
+            raise ValueError(
+                f"attention_source must be 'qwen' or 'diffusion', got {attention_source!r}"
+            )
+        output_qwen_attentions = attention_source == "qwen"
+        output_diffusion_attentions = attention_source == "diffusion"
+        t = t.clone()
+        if guidance_scale > 0.0:
+            if t.shape[-1] != text_tokens.shape[0]:
+                t_cond, t_uncond = torch.chunk(t, 2)
+                t_cond[:-1] = 1.0
+                t_uncond[:-1] = 1.0
+                t = torch.cat([t_cond, t_uncond])
+            _, v, attentions = self(
+                text_tokens,
+                image_latents=image_latents,
+                t=t,
+                attention_mask=attention_mask,
+                modality_positions=modality_positions,
+                first_frame_as_cond=first_frame_as_cond,
+                only_denoise_last_image=only_denoise_last_image,
+                guidance_scale=guidance_scale,
+                output_attentions=output_qwen_attentions,
+                output_diffusion_attentions=output_diffusion_attentions,
+                output_hidden_states=True,
+                max_seq_len=max_seq_len,
+                **kwargs,
+            )
+            v_cond, v_uncond = torch.chunk(v, 2)
+            v = v_uncond + guidance_scale * (v_cond - v_uncond)
+            return torch.cat([v, v], dim=0), attentions
+
+        if t.shape[-1] != text_tokens.shape[0]:
+            t[:-1] = 1.0
+        _, v, attentions = self(
+            text_tokens,
+            image_latents=image_latents,
+            t=t,
+            attention_mask=attention_mask,
+            modality_positions=modality_positions,
+            first_frame_as_cond=first_frame_as_cond,
+            only_denoise_last_image=only_denoise_last_image,
+            guidance_scale=guidance_scale,
+            output_attentions=output_qwen_attentions,
+            output_diffusion_attentions=output_diffusion_attentions,
+            output_hidden_states=True,
+            max_seq_len=max_seq_len,
+            **kwargs,
+        )
+        return v, attentions
+
+    def t2i_generate_with_all_attentions(
+            self,
+            image_latents=None,
+            t=None,
+            text_tokens=None,
+            attention_mask=None,
+            modality_positions=None,
+            first_frame_as_cond=False,
+            only_denoise_last_image=False,
+            max_seq_len=None,
+            guidance_scale=0.0,
+            **kwargs,
+    ):
+        """Probe-only T2I forward returning Qwen and diffusion-head attentions."""
+        kwargs.pop("output_hidden_states", None)
+        if guidance_scale != 0.0:
+            raise ValueError(
+                "t2i_generate_with_all_attentions is a conditional probe API; "
+                "run it with guidance_scale=0"
+            )
+        t = t.clone()
+        if t.shape[-1] != text_tokens.shape[0]:
+            t[:-1] = 1.0
+        _, velocity, qwen_attentions, diffusion_attentions = self(
+            text_tokens,
+            image_latents=image_latents,
+            t=t,
+            attention_mask=attention_mask,
+            modality_positions=modality_positions,
+            first_frame_as_cond=first_frame_as_cond,
+            only_denoise_last_image=only_denoise_last_image,
+            guidance_scale=guidance_scale,
+            output_attentions=True,
+            output_diffusion_attentions=True,
+            output_hidden_states=True,
+            max_seq_len=max_seq_len,
+            **kwargs,
+        )
+        return velocity, qwen_attentions, diffusion_attentions
 
     @torch.no_grad()
     def mmu_generate(
@@ -521,12 +733,17 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             max_new_tokens=100,
             temperature=1.0,
             top_k=None,
+            do_sample=True,
             eos_token=None):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
+        if do_sample and temperature <= 0:
+            raise ValueError("temperature must be positive when do_sample=True")
+        if top_k is not None and top_k < 0:
+            raise ValueError("top_k must be non-negative or None")
         device = input_embeds.device
         dtype = input_embeds.dtype
         result = []
@@ -553,16 +770,16 @@ class Showo2Qwen2_5(ModelMixin, ConfigMixin):
             )
             attention_mask = attention_mask_b
 
-            # pluck the logits at the final step and scale by desired temperature
-            logits = logits[:, -1, :] / temperature
-            # optionally crop the logits to only the top k options
-            if top_k is not None:
-                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                logits[logits < v[:, [-1]]] = -float('Inf')
-            # apply softmax to convert logits to (normalized) probabilities
-            probs = F.softmax(logits, dim=-1)
-            # sample from the distribution
-            idx_next = torch.multinomial(probs, num_samples=1)
+            logits = logits[:, -1, :]
+            if do_sample:
+                logits = logits / temperature
+                if top_k is not None and top_k > 0:
+                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                    logits[logits < v[:, [-1]]] = -float('Inf')
+                probs = F.softmax(logits, dim=-1)
+                idx_next = torch.multinomial(probs, num_samples=1)
+            else:
+                idx_next = torch.argmax(logits, dim=-1, keepdim=True)
             result.append(idx_next[0][0])
             # append sampled index to the running sequence and continue
             idx_next_embeds = self.showo.model.embed_tokens(idx_next)

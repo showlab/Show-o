@@ -1,0 +1,65 @@
+{
+  "drsa_0500": {
+    "guidance_steps": 0,
+    "inner_steps": 1,
+    "energy_step_size": 1.0,
+    "layers": [7],
+    "attention_source": "qwen",
+    "max_grad_rms": 0.0,
+    "drsa_checkpoint": "/root/autodl-tmp/runs/showo2_drsa_train/drsa-train-20260806T165335Z/checkpoints/step-000500.pt"
+  },
+  "drsa_1000": {
+    "guidance_steps": 0,
+    "inner_steps": 1,
+    "energy_step_size": 1.0,
+    "layers": [7],
+    "attention_source": "qwen",
+    "max_grad_rms": 0.0,
+    "drsa_checkpoint": "/root/autodl-tmp/runs/showo2_drsa_train/drsa-train-20260806T165335Z/checkpoints/step-001000.pt"
+  },
+  "drsa_1500": {
+    "guidance_steps": 0,
+    "inner_steps": 1,
+    "energy_step_size": 1.0,
+    "layers": [7],
+    "attention_source": "qwen",
+    "max_grad_rms": 0.0,
+    "drsa_checkpoint": "/root/autodl-tmp/runs/showo2_drsa_train/drsa-train-20260806T165335Z/checkpoints/step-001500.pt"
+  },
+  "drsa_2000": {
+    "guidance_steps": 0,
+    "inner_steps": 1,
+    "energy_step_size": 1.0,
+    "layers": [7],
+    "attention_source": "qwen",
+    "max_grad_rms": 0.0,
+    "drsa_checkpoint": "/root/autodl-tmp/runs/showo2_drsa_train/drsa-train-20260806T165335Z/checkpoints/step-002000.pt"
+  },
+  "drsa_2500": {
+    "guidance_steps": 0,
+    "inner_steps": 1,
+    "energy_step_size": 1.0,
+    "layers": [7],
+    "attention_source": "qwen",
+    "max_grad_rms": 0.0,
+    "drsa_checkpoint": "/root/autodl-tmp/runs/showo2_drsa_train/drsa-train-20260806T165335Z/checkpoints/step-002500.pt"
+  },
+  "drsa_3000": {
+    "guidance_steps": 0,
+    "inner_steps": 1,
+    "energy_step_size": 1.0,
+    "layers": [7],
+    "attention_source": "qwen",
+    "max_grad_rms": 0.0,
+    "drsa_checkpoint": "/root/autodl-tmp/runs/showo2_drsa_train/drsa-train-20260806T165335Z/checkpoints/step-003000.pt"
+  },
+  "drsa_20000": {
+    "guidance_steps": 0,
+    "inner_steps": 1,
+    "energy_step_size": 1.0,
+    "layers": [7],
+    "attention_source": "qwen",
+    "max_grad_rms": 0.0,
+    "drsa_checkpoint": "/root/autodl-tmp/runs/showo2_drsa_train/drsa-train-20k-20260807T065000Z/checkpoints/step-020000.pt"
+  }
+}

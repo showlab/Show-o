@@ -7,7 +7,6 @@ import os
 from copy import deepcopy
 from collections import OrderedDict
 import random
-from decord import VideoReader, cpu
 
 ##################################################
 #              config utils
@@ -234,6 +233,12 @@ def set_seed(seed):
         torch.cuda.manual_seed_all(seed)
 
 def load_video(video_path, max_frames_num, fps, force_sample=False):
+    try:
+        from decord import VideoReader, cpu
+    except ImportError as exc:
+        raise RuntimeError(
+            "load_video requires the optional decord package"
+        ) from exc
     if max_frames_num == 0:
         return np.zeros((1, 432, 432, 3))
 

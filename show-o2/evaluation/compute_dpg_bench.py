@@ -45,6 +45,15 @@ def parse_args():
         type=str,
         default='mplug',
     )
+    parser.add_argument(
+        "--vqa-model-path",
+        type=str,
+        default=os.environ.get(
+            "DPG_MPLUG_PATH",
+            "damo/mplug_visual-question-answering_coco_large_en",
+        ),
+        help="Local mPLUG checkpoint directory or ModelScope model id.",
+    )
 
     args = parser.parse_args()
     return args
@@ -53,14 +62,51 @@ def parse_args():
 class MPLUG(torch.nn.Module):
     def __init__(self, ckpt='damo/mplug_visual-question-answering_coco_large_en', device='gpu'):
         super().__init__()
-        from modelscope.pipelines import pipeline
+        from modelscope.models.multi_modal.mplug_for_all_tasks import MPlugForAllTasks
+        from modelscope.models.multi_modal.mplug.configuration_mplug import MPlugConfig
+        from modelscope.outputs import OutputKeys
         from modelscope.utils.constant import Tasks
-        self.pipeline_vqa = pipeline(Tasks.visual_question_answering, model=ckpt, device=device)
+        from torchvision import transforms
+        from transformers import BertTokenizer
+
+        self.device = torch.device('cuda' if device == 'gpu' else device)
+        self.output_key = OutputKeys.TEXT
+        self.mplug = MPlugForAllTasks(
+            ckpt,
+            task=Tasks.visual_question_answering,
+        ).to(self.device).eval()
+        self.tokenizer = BertTokenizer.from_pretrained(ckpt, local_files_only=True)
+        config = MPlugConfig.from_yaml_file(osp.join(ckpt, 'config.yaml'))
+        self.image_transform = transforms.Compose([
+            transforms.Resize((config.image_res, config.image_res), interpolation=Image.Resampling.BICUBIC),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=(0.48145466, 0.4578275, 0.40821073),
+                std=(0.26862954, 0.26130258, 0.27577711),
+            ),
+        ])
+
+    def _to_device(self, value):
+        if hasattr(value, 'to'):
+            return value.to(self.device)
+        if isinstance(value, dict):
+            return {key: self._to_device(item) for key, item in value.items()}
+        return value
 
     def vqa(self, image, question):
-        input_vqa = {'image': image, 'question': question}
-        result = self.pipeline_vqa(input_vqa)
-        return result['text']
+        image_tensor = self.image_transform(image.convert('RGB')).unsqueeze(0)
+        question_tokens = self.tokenizer(
+            question.lower(),
+            padding='max_length',
+            truncation=True,
+            max_length=25,
+            return_tensors='pt',
+        )
+        inputs = {'image': image_tensor, 'question': question_tokens}
+        inputs = self._to_device(inputs)
+        with torch.inference_mode():
+            result = self.mplug(inputs)
+        return str(result[self.output_key]).strip().lower()
 
 def prepare_dpg_data(args):
     previous_id = ''
@@ -70,8 +116,6 @@ def prepare_dpg_data(args):
     # 'item_id', 'text', 'keywords', 'proposition_id', 'dependency', 'category_broad', 'category_detailed', 'tuple', 'question_natural_language'
     data = pd.read_csv(args.csv)
     for i, line in data.iterrows():
-        if i == 0:
-            continue
 
         current_id = line.item_id
         qid = int(line.proposition_id)
@@ -181,7 +225,7 @@ def main():
 
     device = str(accelerator.device)
     if args.vqa_model == 'mplug':
-        vqa_model = MPLUG(device=device)
+        vqa_model = MPLUG(ckpt=args.vqa_model_path, device=device)
     else:
         raise NotImplementedError
     vqa_model = accelerator.prepare(vqa_model)

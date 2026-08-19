@@ -1,0 +1,32 @@
+{
+  "baseline": {
+    "attention_source": "qwen",
+    "backtracking_factor": 0.5,
+    "backtracking_steps": 0,
+    "energy_step_size": 1.0,
+    "guidance_steps": 0,
+    "inner_steps": 1,
+    "layers": [20],
+    "lookahead_weight": 0.0,
+    "max_flow_step_ratio": 0.0,
+    "max_grad_rms": 0.0,
+    "min_relative_drop": 0.0,
+    "presence_preservation_ratio": 0.0,
+    "timestep_decay_power": 0.0
+  },
+  "relation_qwen21_v3": {
+    "attention_source": "qwen",
+    "backtracking_factor": 0.5,
+    "backtracking_steps": 4,
+    "energy_step_size": 100.0,
+    "guidance_steps": 10,
+    "inner_steps": 2,
+    "layers": [20],
+    "lookahead_weight": 0.5,
+    "max_flow_step_ratio": 0.05,
+    "max_grad_rms": 0.0,
+    "min_relative_drop": 0.001,
+    "presence_preservation_ratio": 0.95,
+    "timestep_decay_power": 1.0
+  }
+}

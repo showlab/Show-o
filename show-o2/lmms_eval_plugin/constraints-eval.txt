@@ -1,0 +1,12 @@
+# RTX 6000D (sm_120) requires PyTorch's CUDA 12.8 wheels. The public version
+# constraints also match the corresponding +cu128 local wheel versions.
+torch==2.7.1
+torchvision==0.22.1
+transformers==4.47.0
+diffusers==0.31.0
+accelerate==1.2.1
+huggingface-hub==0.24.7
+fsspec==2025.9.0
+numpy==1.26.4
+av==12.3.0
+

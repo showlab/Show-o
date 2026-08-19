@@ -1,0 +1,9 @@
+--- Show-o/show-o2/evaluation/c6_mask2former_alignment/train_tifa12_self_cycle.py
++++ Show-o/show-o2/evaluation/c6_mask2former_alignment/train_tifa12_self_cycle.py
+@@ -308,5 +308,6 @@
+         dataset = TifaCocoCycleDataset(
+             args.manifest,
+             shard_root=args.shard_root,
+             image_transform=lambda image: image_transform(image, resolution=432),
++            allow_unpaired=args.allow_unpaired,
+         )
