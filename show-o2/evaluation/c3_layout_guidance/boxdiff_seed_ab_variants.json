@@ -1,0 +1,42 @@
+{
+  "baseline": {
+    "attention_source": "qwen",
+    "energy_step_size": 30.0,
+    "guidance_steps": 0,
+    "inner_steps": 5,
+    "layers": [20],
+    "max_grad_rms": 0.0
+  },
+  "boxdiff_s30": {
+    "attention_source": "qwen",
+    "energy_step_size": 30.0,
+    "guidance_steps": 10,
+    "inner_steps": 5,
+    "layers": [20],
+    "max_grad_rms": 0.0
+  },
+  "boxdiff_s60": {
+    "attention_source": "qwen",
+    "energy_step_size": 60.0,
+    "guidance_steps": 10,
+    "inner_steps": 5,
+    "layers": [20],
+    "max_grad_rms": 0.0
+  },
+  "boxdiff_s100": {
+    "attention_source": "qwen",
+    "energy_step_size": 100.0,
+    "guidance_steps": 10,
+    "inner_steps": 5,
+    "layers": [20],
+    "max_grad_rms": 0.0
+  },
+  "boxdiff_s60_clip5e6": {
+    "attention_source": "qwen",
+    "energy_step_size": 60.0,
+    "guidance_steps": 10,
+    "inner_steps": 5,
+    "layers": [20],
+    "max_grad_rms": 0.000005
+  }
+}

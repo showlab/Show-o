@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "showo2-lmms-plugin"
+version = "0.2.0"
+description = "External lmms-eval adapters for Show-o2 image and video understanding"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.entry-points."lmms_eval.models"]
+showo2 = "showo2_lmms_plugin.manifest:MODEL_MANIFESTS"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
