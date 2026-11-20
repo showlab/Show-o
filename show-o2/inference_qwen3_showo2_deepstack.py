@@ -24,6 +24,9 @@ from inference_qwen3_showo2_fusion_ablation_batch import (
     save_result,
 )
 
+# RAG_INTEGRATION_V1: retrieval is imported lazily only when enabled.
+from investigative_rag.inference_support import OBSERVATION_PROMPT, final_prompt
+
 from qwen3_showo2_deepstack import (
     DeepStackAdapter,
     load_adapter,
@@ -65,10 +68,19 @@ OUTPUT_PATH = SCRIPT_DIR / "results/ablation_results"
 ALPHAS = [i / 10 for i in range(11)]
 MAX_NEW_TOKENS = 512
 OVERWRITE_EXISTING = False
+USE_RAG = False
+RAG_TOP_K = 5
+RAG_MIN_SCORE = None  # Do not use an uncalibrated similarity cutoff.
+RAG_DIR = SCRIPT_DIR / "investigative_rag"
+RAG_OBSERVATION_MAX_TOKENS = 180
 SEED = 42
 
 # Increment if you later change inference behavior and want fresh results.
 RUN_SCHEMA = 1
+
+USE_RAG = False
+RAG_TOP_K = 5
+RAG_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 # ============================================================
@@ -164,6 +176,8 @@ def save_v2_result(job, image_path, checkpoint_path, norms, results):
         fusion_version=2,
         fusion_scope="final_and_deepstack",
         run_identity=job["identity"],
+        **({"rag_enabled": True, "rag_provenance": job["identity"].get("rag")}
+           if job["identity"].get("rag") else {}),
     )
 
     temporary = path.with_suffix(".json.tmp")
@@ -326,15 +340,53 @@ def process_image(image_path, jobs, checkpoints, args):
                 alpha,
             )
 
+            rag_observation = None
+            retrieved_knowledge = []
+            effective_inputs = inputs
+            effective_prompt = job["prompt"]
+
+            if args.use_rag:
+                # Two-pass mode: obtain *neutral* observations before retrieval.
+                observation_inputs = move_inputs_to_device(
+                    prepare_qwen_inputs(processor, image, OBSERVATION_PROMPT),
+                    base.DEVICE,
+                )
+                reset_seed()
+                with patched_image_features(qwen, final, fused_deep):
+                    observation_ids = qwen.generate(
+                        **observation_inputs,
+                        max_new_tokens=args.rag_observation_max_tokens,
+                        do_sample=False,
+                        use_cache=True,
+                    )
+                rag_observation = processor.batch_decode(
+                    observation_ids[:, observation_inputs["input_ids"].shape[1]:],
+                    skip_special_tokens=True,
+                    clean_up_tokenization_spaces=False,
+                )[0]
+
+                from investigative_rag.inference_support import retrieve_context
+                context, retrieved_knowledge = retrieve_context(
+                    args.rag_retriever, rag_observation,
+                    top_k=args.rag_top_k, min_score=args.rag_min_score,
+                )
+                effective_prompt = final_prompt(job["prompt"], context)
+                effective_inputs = move_inputs_to_device(
+                    prepare_qwen_inputs(processor, image, effective_prompt),
+                    base.DEVICE,
+                )
+
+            if args.use_rag:
+                reset_seed()
             with patched_image_features(qwen, final, fused_deep):
                 ids = qwen.generate(
-                    **inputs,
+                    **effective_inputs,
                     max_new_tokens=args.max_new_tokens,
                     do_sample=False,
                     use_cache=True,
                 )
 
-            generated = ids[:, inputs["input_ids"].shape[1]:]
+            generated = ids[:, effective_inputs["input_ids"].shape[1]:]
             text = processor.batch_decode(
                 generated,
                 skip_special_tokens=True,
@@ -347,6 +399,14 @@ def process_image(image_path, jobs, checkpoints, args):
                 "qwen_norm": qwen_norm,
                 "showo2_norm": showo_norm,
                 "output": text,
+                **({
+                    "rag_enabled": True,
+                    "rag_observation": rag_observation,
+                    "retrieved_knowledge": retrieved_knowledge,
+                    "rag_effective_prompt_sha256": hashlib.sha256(
+                        effective_prompt.encode("utf-8")
+                    ).hexdigest(),
+                } if args.use_rag else {}),
             })
 
             print(f"\nalpha={alpha:.1f}\n{text}", flush=True)
@@ -390,6 +450,12 @@ def main():
         default=str(STAGE2_CHECKPOINT),
     )
     parser.add_argument("--vae-path", default=base.WAN_VAE_PATH)
+    parser.add_argument("--use-rag", action="store_true", default=USE_RAG)
+    parser.add_argument("--rag-dir", default=str(RAG_DIR))
+    parser.add_argument("--rag-top-k", type=int, default=RAG_TOP_K)
+    parser.add_argument("--rag-min-score", type=float, default=RAG_MIN_SCORE)
+    parser.add_argument("--rag-observation-max-tokens", type=int,
+                        default=RAG_OBSERVATION_MAX_TOKENS)
     parser.add_argument(
         "--alphas", nargs="+", type=float, default=ALPHAS
     )
@@ -403,6 +469,16 @@ def main():
     )
 
     args = parser.parse_args()
+
+    args.rag_retriever = None
+    args.rag_provenance = None
+    if args.use_rag:
+        from investigative_rag.inference_support import initialize_rag
+        args.rag_retriever, args.rag_provenance = initialize_rag(
+            args.rag_dir, top_k=args.rag_top_k
+        )
+        if args.rag_observation_max_tokens < 1:
+            parser.error("rag-observation-max-tokens must be positive")
 
     if any(not 0 <= alpha <= 1 for alpha in args.alphas):
         parser.error("alphas must be finite and in [0, 1]")
@@ -498,6 +574,12 @@ def main():
         "seed": SEED,
         "alphas": args.alphas,
         "max_new_tokens": args.max_new_tokens,
+        # RAG settings change the run identity only in RAG mode.
+        **({"rag": args.rag_provenance,
+            "rag_min_score": args.rag_min_score,
+            "rag_observation_max_tokens": args.rag_observation_max_tokens,
+            "rag_observation_prompt": OBSERVATION_PROMPT}
+           if args.use_rag else {}),
     }
 
     for image_index, image_path in enumerate(images, start=1):

@@ -1,0 +1,90 @@
+[
+  {
+    "source_id": "MITRE-ID",
+    "title": "Gather Victim Identity Information (T1589)",
+    "url": "https://attack.mitre.org/techniques/T1589/",
+    "organization": "MITRE ATT&CK",
+    "verification_status": "verified_page_content_2026-11-19",
+    "verification_note": "Source supports general guidance; case-specific visual-risk mapping is analyst interpretation, not source-authored diagnosis."
+  },
+  {
+    "source_id": "MITRE-LOC",
+    "title": "Determine Physical Locations (T1591.001; organizations)",
+    "url": "https://attack.mitre.org/techniques/T1591/001/",
+    "organization": "MITRE ATT&CK",
+    "verification_note": "Organization-focused location reconnaissance only; not a direct match for private homes.",
+    "verification_status": "verified_page_content_2026-11-19"
+  },
+  {
+    "source_id": "MITRE-SOC",
+    "title": "Social Media Reconnaissance (T1593.001)",
+    "url": "https://attack.mitre.org/techniques/T1593/001/",
+    "organization": "MITRE ATT&CK",
+    "verification_status": "verified_page_content_2026-11-19",
+    "verification_note": "Source supports general guidance; case-specific visual-risk mapping is analyst interpretation, not source-authored diagnosis."
+  },
+  {
+    "source_id": "MITRE-IMP",
+    "title": "Social Engineering: Impersonation (T1684.001)",
+    "url": "https://attack.mitre.org/techniques/T1684/001/",
+    "organization": "MITRE ATT&CK",
+    "verification_status": "verified_page_content_2026-11-19",
+    "verification_note": "Source supports general guidance; case-specific visual-risk mapping is analyst interpretation, not source-authored diagnosis."
+  },
+  {
+    "source_id": "ES-ABA",
+    "title": "FAQ about image-based abuse",
+    "url": "https://www.esafety.gov.au/key-topics/image-based-abuse/faq-about-image-based-abuse",
+    "organization": "eSafety Commissioner",
+    "verification_status": "verified_page_content_2026-11-19",
+    "verification_note": "Source supports general guidance; case-specific visual-risk mapping is analyst interpretation, not source-authored diagnosis."
+  },
+  {
+    "source_id": "ES-SEXT",
+    "title": "Dealing with sexual extortion",
+    "url": "https://www.esafety.gov.au/key-topics/image-based-abuse/deal-with-sextortion",
+    "organization": "eSafety Commissioner",
+    "verification_status": "verified_page_content_2026-11-19",
+    "verification_note": "Source supports general guidance; case-specific visual-risk mapping is analyst interpretation, not source-authored diagnosis."
+  },
+  {
+    "source_id": "ES-CHILD",
+    "title": "Privacy and your child",
+    "url": "https://www.esafety.gov.au/parents/issues-and-advice/privacy-child",
+    "organization": "eSafety Commissioner",
+    "verification_status": "verified_page_content_2026-11-19",
+    "verification_note": "Source supports general guidance; case-specific visual-risk mapping is analyst interpretation, not source-authored diagnosis."
+  },
+  {
+    "source_id": "FTC-ROM",
+    "title": "What To Know About Romance Scams",
+    "url": "https://consumer.ftc.gov/articles/what-know-about-romance-scams",
+    "organization": "US Federal Trade Commission",
+    "verification_note": "Verified: false profiles and reverse-image-search advice; does not itself prove any given photo is stolen.",
+    "verification_status": "verified_page_content_2026-11-19"
+  },
+  {
+    "source_id": "NCA-TRAVEL",
+    "title": "Vacation and Travel Cybersecurity Tips",
+    "url": "https://www.staysafeonline.org/articles/vacation-and-travel-security-tips",
+    "organization": "National Cybersecurity Alliance",
+    "verification_status": "verified_page_content_2026-11-19",
+    "verification_note": "Source supports general guidance; case-specific visual-risk mapping is analyst interpretation, not source-authored diagnosis."
+  },
+  {
+    "source_id": "NCA-ACCOUNT",
+    "title": "Protect Yourself from Social Media Account Takeovers",
+    "url": "https://www.staysafeonline.org/articles/protect-yourself-from-social-media-account-takeovers",
+    "organization": "National Cybersecurity Alliance",
+    "verification_note": "Verified: describes profile cloning and impersonation using public photo information.",
+    "verification_status": "verified_page_content_2026-11-19"
+  },
+  {
+    "source_id": "ES-SHARE",
+    "title": "Photo and video sharing",
+    "url": "https://www.esafety.gov.au/key-topics/online-tools-and-features/photo-and-video-sharing",
+    "organization": "eSafety Commissioner",
+    "verification_status": "verified_page_content_2026-11-19",
+    "verification_note": "Source supports general guidance; case-specific visual-risk mapping is analyst interpretation, not source-authored diagnosis."
+  }
+]

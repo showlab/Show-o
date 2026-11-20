@@ -1,0 +1,30 @@
+[
+  {
+    "technique_id": "T1589",
+    "name": "Gather Victim Identity Information",
+    "url": "https://attack.mitre.org/techniques/T1589/",
+    "caveat": "contextual mapping, not observed technique",
+    "mapping_limitations": "Contextual taxonomy label only; photo cannot establish an adversary technique."
+  },
+  {
+    "technique_id": "T1591.001",
+    "name": "Determine Physical Locations (organizational)",
+    "url": "https://attack.mitre.org/techniques/T1591/001/",
+    "caveat": "contextual mapping, not observed technique",
+    "mapping_limitations": "Contextual taxonomy label only; photo cannot establish an adversary technique. Technique concerns organizational physical locations; private residence comparisons are out of scope."
+  },
+  {
+    "technique_id": "T1593.001",
+    "name": "Social Media",
+    "url": "https://attack.mitre.org/techniques/T1593/001/",
+    "caveat": "contextual mapping, not observed technique",
+    "mapping_limitations": "Contextual taxonomy label only; photo cannot establish an adversary technique."
+  },
+  {
+    "technique_id": "T1684.001",
+    "name": "Impersonation",
+    "url": "https://attack.mitre.org/techniques/T1684/001/",
+    "caveat": "contextual mapping, not observed technique",
+    "mapping_limitations": "Contextual taxonomy label only; photo cannot establish an adversary technique."
+  }
+]

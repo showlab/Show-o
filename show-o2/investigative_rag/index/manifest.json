@@ -1,0 +1,20 @@
+{
+  "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+  "ids": [
+    "VR-001",
+    "VR-002",
+    "VR-003",
+    "VR-004",
+    "VR-005",
+    "VR-006",
+    "VR-007",
+    "VR-008",
+    "VR-009",
+    "VR-010",
+    "VR-011",
+    "VR-012"
+  ],
+  "dimension": 384,
+  "corpus_sha256": "39c3322e0e115ba19be7851ad506bf2ad028a839eb812f44061e389fcd931a17",
+  "similarity": "cosine_using_normalized_inner_product"
+}
