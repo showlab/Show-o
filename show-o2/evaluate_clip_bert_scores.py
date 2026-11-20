@@ -2279,13 +2279,13 @@ def parse_args():
         "--predictions",
         type=Path,
         #required=True,
-        default='/home/chatziko/PycharmProjects/PythonProject/Show-o/show-o2/results/ablation_results/non_crime_deepstack',
+        default='/home/chatziko/PycharmProjects/PythonProject/Show-o/show-o2/results/ablation_results/crime_deepstack',
         help="Prediction file or directory containing JSON/JSONL/CSV outputs.",
     )
     p.add_argument(
         "--paligemma",
         type=Path,
-        default='/home/chatziko/PycharmProjects/PythonProject/IDMVAE/archive/UCF Image Dataset/image_category_captions_with_color.csv',
+        default='/home/chatziko/PycharmProjects/PythonProject/IDMVAE/archive/UCA_image_dataset/one_frame_per_video_split/captions_florence_detailed.jsonl',
         help=(
             "PaliGemma pseudo-reference file/directory. Required only when "
             "BERTScore is requested."
@@ -2295,7 +2295,7 @@ def parse_args():
         "--metrics",
         nargs="+",
         choices=("clip", "bert"),
-        default=["clip"],
+        default=["clip", "bert"],
         help=(
             "Metrics to run. Examples: '--metrics clip' for image-text score only, "
             "'--metrics bert' for BERTScore only, or '--metrics clip bert' for both."
@@ -2304,14 +2304,14 @@ def parse_args():
     p.add_argument(
         "--image-root",
         type=Path,
-        default='/home/chatziko/PycharmProjects/PythonProject/test_images_showo2',
+        default='/home/chatziko/PycharmProjects/PythonProject/IDMVAE/archive/UCA_image_dataset/one_frame_per_video_split/images',
         help="Optional root directory used to resolve image paths/basenames.",
     )
     p.add_argument(
         "--output-dir",
         type=Path,
         #required=True,
-        default='/home/chatziko/PycharmProjects/PythonProject/Show-o/show-o2/results/non_crime_deepstack',
+        default='/home/chatziko/PycharmProjects/PythonProject/Show-o/show-o2/results/crime_deepstack_florence_less',
     )
     p.add_argument(
         "--device",
